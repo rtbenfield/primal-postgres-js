@@ -1,3 +1,8 @@
 {
-  "extends": "@tsconfig/strictest"
+  "extends": "@tsconfig/strictest",
+  "compilerOptions": {
+    "lib": ["ES2021.String", "ES2024.ArrayBuffer"],
+    "moduleResolution": "node",
+    "target": "ES2023"
+  }
 }

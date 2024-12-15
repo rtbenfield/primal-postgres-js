@@ -9,4 +9,5 @@ services:
       - 5432:5432
     command: >
       postgres
+      -c log_connections=on
       -c wal_level=logical
