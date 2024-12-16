@@ -24,6 +24,15 @@ export class BinaryReader {
     return this.#view.getUint8(this.#position);
   }
 
+  readBuffer(length: number) {
+    const buffer = this.#view.buffer.slice(
+      this.#view.byteOffset + this.#position,
+      this.#view.byteOffset + this.#position + length,
+    );
+    this.#position += length;
+    return buffer;
+  }
+
   readByte() {
     const value = this.peekByte();
     this.#position++;

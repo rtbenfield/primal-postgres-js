@@ -1,4 +1,3 @@
-import { BinaryReader } from "./binary-reader";
 import type { ResolvedConnectionOptions, Socket } from "./mod";
 import {
   AuthenticationOK,
@@ -7,54 +6,25 @@ import {
   AuthenticationSASLFinal,
   authenticationSwitch,
   BackendKeyData,
+  CommandComplete,
+  DataRow,
   ParameterStatus,
+  Query,
   ReadyForQuery,
+  RowDescription,
   SASLInitialResponse,
   SASLResponse,
   StartupMessage,
 } from "./protocol";
 
-/**
- * Postgres will sometimes batch multiple messages into a single packet.
- * To simplify downstream processing, this transformer splits them before
- * enqueuing them for the next consumer.
- */
-class PostgresMessageSplitStream extends TransformStream<
-  Uint8Array,
-  Uint8Array
-> {
-  constructor() {
-    super({
-      transform(chunk, controller) {
-        let buffer = chunk;
-
-        while (buffer.byteLength > 0) {
-          const reader = new BinaryReader(
-            buffer.buffer,
-            buffer.byteOffset,
-            buffer.byteLength,
-          );
-          reader.readByte();
-          const packetLength = reader.readInt32() + 1;
-          const packet = buffer.subarray(0, packetLength);
-          controller.enqueue(packet);
-          buffer = buffer.subarray(packetLength);
-        }
-      },
-    });
-  }
-}
-
-export async function executeSequence<T extends Sequence<unknown>>(
+export async function executeSequence<T>(
   socket: Socket,
-  sequence: T,
+  sequence: Sequence<T>,
 ) {
   const { readable, writable } = socket;
   const writer = writable.getWriter();
   try {
-    const reader = readable
-      .pipeThrough(new PostgresMessageSplitStream())
-      .getReader();
+    const reader = readable.getReader();
     try {
       // get the first packet
       let outbox = await sequence.next();
@@ -66,7 +36,7 @@ export async function executeSequence<T extends Sequence<unknown>>(
           await writer.write(outbox.value);
         }
         // receive the next packet
-        console.debug("...waiting for reply...");
+        // console.debug("...waiting for reply...");
         const inbox = await reader.read();
         if (inbox.done) {
           throw new Error("Connection closed unexpectedly");
@@ -76,6 +46,7 @@ export async function executeSequence<T extends Sequence<unknown>>(
         // pass the repy packet back into the sequence
         outbox = await sequence.next(inbox.value);
       }
+      return outbox.value;
     } finally {
       reader.releaseLock();
     }
@@ -291,4 +262,30 @@ function xor(a: Uint8Array, b: Uint8Array) {
     result[i] = a[i]! ^ b[i]!;
   }
   return result;
+}
+
+export async function* querySequence(sql: string): Sequence<DataRow> {
+  let reply = yield new Query(sql).buffer;
+  const rowDescription = RowDescription.parse(
+    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
+  );
+  console.log(rowDescription);
+
+  reply = yield SKIP;
+  const dataRow = DataRow.parse(
+    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
+  );
+
+  reply = yield SKIP;
+  CommandComplete.parse(
+    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
+  );
+
+  reply = yield SKIP;
+  // ReadyForQuery
+  ReadyForQuery.parse(
+    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
+  );
+
+  return dataRow;
 }

@@ -234,6 +234,124 @@ export class SASLResponse {
   }
 }
 
+export class Query {
+  static get CODE() {
+    // 'Q'
+    return 0x51 as const;
+  }
+
+  constructor(public sql: string) {}
+
+  get buffer() {
+    const writer = new BinaryWriter(5 + this.sql.length);
+    writer.writeByte(Query.CODE);
+    writer.writeInt32(4 + this.sql.length + 1);
+    writer.writeString(this.sql);
+    return writer.buffer;
+  }
+}
+
+/**
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COMMANDCOMPLETE PostgreSQL Docs}
+ */
+export class CommandComplete {
+  static get CODE() {
+    // 'C'
+    return 0x43 as const;
+  }
+
+  constructor(public commandTag: string) {}
+
+  static parse(buffer: ArrayBufferLike) {
+    const reader = new BinaryReader(buffer);
+    const code = reader.readByte();
+    console.assert(
+      code === CommandComplete.CODE,
+      `Expected 'C', got ${String.fromCharCode(code)}`,
+    );
+    const length = reader.readInt32();
+    const commandTag = reader.readString();
+    return new CommandComplete(commandTag);
+  }
+}
+
+/**
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-DATAROW PostgreSQL Docs}
+ */
+export class DataRow {
+  static get CODE() {
+    // 'D'
+    return 0x44 as const;
+  }
+
+  constructor(public columns: unknown[]) {}
+
+  static parse(buffer: ArrayBufferLike) {
+    const reader = new BinaryReader(buffer);
+    const code = reader.readByte();
+    console.assert(
+      code === DataRow.CODE,
+      `Expected 'D', got ${String.fromCharCode(code)}`,
+    );
+    const length = reader.readInt32();
+    const columnCount = reader.readInt16();
+    const columns = new Array<unknown>(columnCount);
+    for (let i = 0; i < columnCount; i++) {
+      const columnLength = reader.readInt32();
+      if (columnLength === -1) {
+        columns[i] = null;
+      } else {
+        const buffer = new Uint8Array(reader.readBuffer(columnLength));
+        columns[i] = decoder.decode(buffer);
+      }
+    }
+    return new DataRow(columns);
+  }
+}
+
+/**
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-ROWDESCRIPTION PostgreSQL Docs}
+ */
+export class RowDescription {
+  static get CODE() {
+    // 'T'
+    return 0x54 as const;
+  }
+
+  constructor(public columns: unknown[]) {}
+
+  static parse(buffer: ArrayBufferLike) {
+    const reader = new BinaryReader(buffer);
+    const code = reader.readByte();
+    console.assert(
+      code === RowDescription.CODE,
+      `Expected 'T', got ${String.fromCharCode(code)}`,
+    );
+    const length = reader.readInt32();
+    const fieldCount = reader.readInt16();
+    const fields = new Array<unknown>(fieldCount);
+    for (let i = 0; i < fieldCount; i++) {
+      const fieldName = reader.readString();
+      const relid = reader.readInt32();
+      const relseq = reader.readInt16();
+      const oid = reader.readInt32();
+      const typelen = reader.readInt16();
+      const typemod = reader.readInt32();
+      const formatCode = reader.readInt16();
+      fields[i] = {
+        fieldName,
+        relid,
+        relseq,
+        oid,
+        typelen,
+        typemod,
+        formatCode,
+      };
+    }
+    return new RowDescription(fields);
+  }
+}
+
 export class ReadyForQuery {
   static get CODE() {
     return 0x5a as const;

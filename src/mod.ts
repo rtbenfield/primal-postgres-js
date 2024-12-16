@@ -1,4 +1,5 @@
-import { executeSequence, startupSequence } from "./sequence";
+import { BinaryReader } from "./binary-reader";
+import { executeSequence, querySequence, startupSequence } from "./sequence";
 
 export interface ConnectionOptions {
   database: string;
@@ -38,13 +39,28 @@ export class Client {
       this.#connection.port,
     );
 
-    await executeSequence(socket, startupSequence(this.#connection));
+    const patchedSocket: Socket = {
+      readable: socket.readable.pipeThrough(new PostgresMessageSplitStream()),
+      writable: socket.writable,
+    };
 
-    return new Connection();
+    await executeSequence(patchedSocket, startupSequence(this.#connection));
+
+    return new Connection(patchedSocket);
   }
 }
 
-export class Connection {}
+export class Connection {
+  readonly #socket: Socket;
+
+  constructor(socket: Socket) {
+    this.#socket = socket;
+  }
+
+  async query(sql: string) {
+    return await executeSequence(this.#socket, querySequence(sql));
+  }
+}
 
 function resolveConnection(
   connection: string | URL | ConnectionOptions,
@@ -87,4 +103,35 @@ export interface ResolvedConnectionOptions {
   replication: true | false | "database";
   username: string;
   password: string | null;
+}
+
+/**
+ * Postgres will sometimes batch multiple messages into a single packet.
+ * To simplify downstream processing, this transformer splits them before
+ * enqueuing them for the next consumer.
+ */
+class PostgresMessageSplitStream extends TransformStream<
+  Uint8Array,
+  Uint8Array
+> {
+  constructor() {
+    super({
+      transform(chunk, controller) {
+        let buffer = chunk;
+
+        while (buffer.byteLength > 0) {
+          const reader = new BinaryReader(
+            buffer.buffer,
+            buffer.byteOffset,
+            buffer.byteLength,
+          );
+          reader.readByte();
+          const packetLength = reader.readInt32() + 1;
+          const packet = buffer.subarray(0, packetLength);
+          controller.enqueue(packet);
+          buffer = buffer.subarray(packetLength);
+        }
+      },
+    });
+  }
 }

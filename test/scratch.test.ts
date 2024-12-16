@@ -23,4 +23,6 @@ test("scratch", async () => {
   });
 
   const connection = await client.connect();
+  const result = await connection.query('SELECT 1, 2 AS "two"');
+  console.log("!!!!!!!!", result.columns);
 });
