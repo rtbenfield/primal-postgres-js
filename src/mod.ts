@@ -54,7 +54,7 @@ export class Client {
   async connect(): Promise<Connection> {
     const socket = await this.#options.socket(
       this.#connection.hostname,
-      this.#connection.port,
+      this.#connection.port
     );
 
     const patchedSocket: Socket = {
@@ -81,7 +81,7 @@ export class Connection {
 
   async query2(
     sql: string,
-    parameters: ReadonlyArray<null | string | Uint8Array>,
+    parameters: ReadonlyArray<null | string | Uint8Array>
   ) {
     const reader = this.#socket.readable.getReader();
     const writer = this.#socket.writable.getWriter();
@@ -106,88 +106,62 @@ export class Connection {
         }
         console.info(
           "<--",
-          String.fromCharCode(reply.value.at(0)!),
+          String.fromCharCode(reply.value.at(0)!)
           // reply.value,
+        );
+        const replyBuffer = reply.value.buffer.slice(
+          reply.value.byteOffset,
+          reply.value.byteOffset + reply.value.byteLength
         );
         switch (reply.value.at(0)) {
           case BindComplete.CODE: {
-            BindComplete.parse(
-              reply.value.buffer.slice(
-                reply.value.byteOffset,
-                reply.value.byteOffset + reply.value.byteLength,
-              ),
-            );
+            BindComplete.parse(replyBuffer);
             continue;
           }
           case ParseComplete.CODE: {
             continue;
           }
           case ParameterDescription.CODE: {
-            const parameterDescription = ParameterDescription.parse(
-              reply.value.buffer.slice(
-                reply.value.byteOffset,
-                reply.value.byteOffset + reply.value.byteLength,
-              ),
-            );
+            const parameterDescription =
+              ParameterDescription.parse(replyBuffer);
             parameterDescriptions.push(parameterDescription);
             continue;
           }
           case RowDescription.CODE: {
-            const rowDescription = RowDescription.parse(
-              reply.value.buffer.slice(
-                reply.value.byteOffset,
-                reply.value.byteOffset + reply.value.byteLength,
-              ),
-            );
+            const rowDescription = RowDescription.parse(replyBuffer);
             rowDescriptions.push(rowDescription);
             continue;
           }
           case ErrorResponse.CODE: {
-            const errorResponse = ErrorResponse.parse(
-              reply.value.buffer.slice(
-                reply.value.byteOffset,
-                reply.value.byteOffset + reply.value.byteLength,
-              ),
-            );
+            const errorResponse = ErrorResponse.parse(replyBuffer);
             throw errorResponse;
           }
           case DataRow.CODE: {
-            const dataRow = DataRow.parse(
-              reply.value.buffer.slice(
-                reply.value.byteOffset,
-                reply.value.byteOffset + reply.value.byteLength,
-              ),
-            );
+            const dataRow = DataRow.parse(replyBuffer);
             dataRows.push(dataRow);
             continue;
           }
           case CommandComplete.CODE: {
-            CommandComplete.parse(
-              reply.value.buffer.slice(
-                reply.value.byteOffset,
-                reply.value.byteOffset + reply.value.byteLength,
-              ),
-            );
+            CommandComplete.parse(replyBuffer);
             continue;
           }
           case ReadyForQuery.CODE: {
-            ReadyForQuery.parse(
-              reply.value.buffer.slice(
-                reply.value.byteOffset,
-                reply.value.byteOffset + reply.value.byteLength,
-              ),
-            );
+            ReadyForQuery.parse(replyBuffer);
             return new ReadableStream({
               start(controller) {
                 for (const dataRow of dataRows) {
                   controller.enqueue(dataRow);
                 }
                 controller.close();
-              }
+              },
             });
           }
           default: {
-            throw new Error(`Unexpected packet type ${String.fromCharCode(reply.value.at(0)!)}`);
+            throw new Error(
+              `Unexpected packet type ${String.fromCharCode(
+                reply.value.at(0)!
+              )}`
+            );
           }
         }
       }
@@ -199,7 +173,7 @@ export class Connection {
 }
 
 function resolveConnection(
-  connection: string | URL | ConnectionOptions,
+  connection: string | URL | ConnectionOptions
 ): ResolvedConnectionOptions {
   if (connection instanceof URL) {
     return {
@@ -259,7 +233,7 @@ class PostgresMessageSplitStream extends TransformStream<
           const reader = new BinaryReader(
             buffer.buffer,
             buffer.byteOffset,
-            buffer.byteLength,
+            buffer.byteLength
           );
           reader.readByte();
           const packetLength = reader.readInt32() + 1;
