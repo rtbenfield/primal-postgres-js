@@ -46,16 +46,32 @@ export class BinaryWriter {
     return this;
   }
 
-  writeBuffer(value: ArrayBufferLike) {
+  writeBuffer(value: ArrayBufferLike): this;
+  writeBuffer(value: Uint8Array): this;
+  writeBuffer(value: ArrayBufferLike | Uint8Array) {
+    const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
     const position = this.#buffer.byteLength;
-    this.#buffer.resize(this.#buffer.byteLength + value.byteLength);
+    this.#buffer.resize(this.#buffer.byteLength + bytes.byteLength);
     const buffer = new Uint8Array(this.buffer);
-    buffer.set(new Uint8Array(value), position);
+    buffer.set(bytes, position);
     return this;
   }
 
-  writeByte(value: number) {
-    return this.writeInt8(value);
+  writeByte(value: number): this;
+  writeByte(value: string): this;
+  writeByte(value: number | string) {
+    if (typeof value === "string") {
+      if (value.length !== 1) {
+        throw new RangeError(
+          `Expected string of length 1, got ${value.length}`,
+        );
+      }
+      return this.encodeInto(value);
+    } else if (typeof value === "number") {
+      return this.writeInt8(value);
+    } else {
+      throw new TypeError(`Expected number or string, got ${typeof value}`);
+    }
   }
 
   writeInt8(value: number) {

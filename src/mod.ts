@@ -1,5 +1,23 @@
 import { BinaryReader } from "./binary-reader";
-import { executeSequence, querySequence, startupSequence } from "./sequence";
+import {
+  Bind,
+  BindComplete,
+  CommandComplete,
+  DataRow,
+  Describe,
+  ErrorResponse,
+  Execute,
+  Flush,
+  ParameterDescription,
+  Parse,
+  ParseComplete,
+  ReadyForQuery,
+  RowDescription,
+  Sync,
+} from "./protocol";
+import { simpleQuerySequence } from "./protocol/query";
+import { startupSequence } from "./protocol/startup";
+import { executeSequence, executeSequenceStream } from "./sequence";
 
 export interface ConnectionOptions {
   database: string;
@@ -58,7 +76,125 @@ export class Connection {
   }
 
   async query(sql: string) {
-    return await executeSequence(this.#socket, querySequence(sql));
+    return await executeSequenceStream(this.#socket, simpleQuerySequence(sql));
+  }
+
+  async query2(
+    sql: string,
+    parameters: ReadonlyArray<null | string | Uint8Array>,
+  ) {
+    const reader = this.#socket.readable.getReader();
+    const writer = this.#socket.writable.getWriter();
+    try {
+      await writer.write(new Parse("", sql, []).buffer);
+      await writer.write(new Describe("S", "").buffer);
+      await writer.write(new Bind("", "", parameters, []).buffer);
+      await writer.write(new Execute("").buffer);
+      await writer.write(new Sync().buffer);
+      // ? is a Flush necessary?
+      // Postgres buffers the responses to minimize back-and-forth
+      // the Sync seems to cause a flush, but I'm not sure if that's consistent
+      await writer.write(new Flush().buffer);
+
+      const parameterDescriptions = new Array<ParameterDescription>();
+      const rowDescriptions = new Array<RowDescription>();
+      const dataRows = new Array<DataRow>();
+      while (true) {
+        const reply = await reader.read();
+        if (reply.done) {
+          throw new Error(`connection was closed unexpectedly`);
+        }
+        console.info(
+          "<--",
+          String.fromCharCode(reply.value.at(0)!),
+          // reply.value,
+        );
+        switch (reply.value.at(0)) {
+          case BindComplete.CODE: {
+            BindComplete.parse(
+              reply.value.buffer.slice(
+                reply.value.byteOffset,
+                reply.value.byteOffset + reply.value.byteLength,
+              ),
+            );
+            continue;
+          }
+          case ParseComplete.CODE: {
+            continue;
+          }
+          case ParameterDescription.CODE: {
+            const parameterDescription = ParameterDescription.parse(
+              reply.value.buffer.slice(
+                reply.value.byteOffset,
+                reply.value.byteOffset + reply.value.byteLength,
+              ),
+            );
+            parameterDescriptions.push(parameterDescription);
+            continue;
+          }
+          case RowDescription.CODE: {
+            const rowDescription = RowDescription.parse(
+              reply.value.buffer.slice(
+                reply.value.byteOffset,
+                reply.value.byteOffset + reply.value.byteLength,
+              ),
+            );
+            rowDescriptions.push(rowDescription);
+            continue;
+          }
+          case ErrorResponse.CODE: {
+            const errorResponse = ErrorResponse.parse(
+              reply.value.buffer.slice(
+                reply.value.byteOffset,
+                reply.value.byteOffset + reply.value.byteLength,
+              ),
+            );
+            throw errorResponse;
+          }
+          case DataRow.CODE: {
+            const dataRow = DataRow.parse(
+              reply.value.buffer.slice(
+                reply.value.byteOffset,
+                reply.value.byteOffset + reply.value.byteLength,
+              ),
+            );
+            dataRows.push(dataRow);
+            continue;
+          }
+          case CommandComplete.CODE: {
+            CommandComplete.parse(
+              reply.value.buffer.slice(
+                reply.value.byteOffset,
+                reply.value.byteOffset + reply.value.byteLength,
+              ),
+            );
+            continue;
+          }
+          case ReadyForQuery.CODE: {
+            ReadyForQuery.parse(
+              reply.value.buffer.slice(
+                reply.value.byteOffset,
+                reply.value.byteOffset + reply.value.byteLength,
+              ),
+            );
+            return new ReadableStream({
+              start(controller) {
+                for (const dataRow of dataRows) {
+                  controller.enqueue(dataRow);
+                }
+                controller.close();
+              }
+            });
+          }
+          default: {
+            throw new Error(`Unexpected packet type ${String.fromCharCode(reply.value.at(0)!)}`);
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+      writer.releaseLock();
+    }
   }
 }
 

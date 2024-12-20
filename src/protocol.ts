@@ -5,22 +5,111 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 /**
+ * ErrorResponse (B)
+ *
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-ERRORRESPONSE PostgreSQL Docs}
  */
 export class ErrorResponse {
+  static get CODE() {
+    // 'E'
+    return 0x45 as const;
+  }
+
+  constructor(public fields: PostgresErrorResponse) {}
+
   static parse(buffer: ArrayBufferLike) {
     const reader = new BinaryReader(buffer);
+
     const code = reader.readByte();
-    const length = reader.readInt32();
-    // TODO: parse fields from https://www.postgresql.org/docs/current/protocol-error-fields.html
-    const tempFieldMap = new Map<string, string>();
-    while (reader.remaining > 0) {
+    console.assert(
+      code === ErrorResponse.CODE,
+      `Expected 'E', got ${String.fromCharCode(code)}`,
+    );
+
+    reader.readInt32(); // length, no-op
+
+    const errorResponse: PostgresErrorResponse = {};
+    while (reader.remaining > 1) {
       const fieldType = reader.readByte();
       const value = reader.readString();
-      tempFieldMap.set(String.fromCharCode(fieldType), value);
+      switch (fieldType) {
+        case 0x53: // 'S' - Severity
+          errorResponse.severity = value;
+          break;
+        case 0x43: // 'C' - SQLSTATE code
+          errorResponse.code = value;
+          break;
+        case 0x4D: // 'M' - Message
+          errorResponse.message = value;
+          break;
+        case 0x44: // 'D' - Detail
+          errorResponse.detail = value;
+          break;
+        case 0x48: // 'H' - Hint
+          errorResponse.hint = value;
+          break;
+        case 0x50: // 'P' - Position
+          errorResponse.position = value;
+          break;
+        case 0x51: // 'Q' - Internal Query
+          errorResponse.internalQuery = value;
+          break;
+        case 0x57: // 'W' - Where
+          errorResponse.where = value;
+          break;
+        case 0x73: // 's' - Schema
+          errorResponse.schema = value;
+          break;
+        case 0x74: // 't' - Table
+          errorResponse.table = value;
+          break;
+        case 0x63: // 'c' - Column
+          errorResponse.column = value;
+          break;
+        case 0x64: // 'd' - Data Type
+          errorResponse.dataType = value;
+          break;
+        case 0x6E: // 'n' - Constraint
+          errorResponse.constraint = value;
+          break;
+        case 0x46: // 'F' - File
+          errorResponse.file = value;
+          break;
+        case 0x4C: // 'L' - Line
+          errorResponse.line = value;
+          break;
+        case 0x52: // 'R' - Routine
+          errorResponse.routine = value;
+          break;
+        default:
+          console.warn(`Unknown field type: ${fieldType}`);
+      }
     }
-    return { code, tempFieldMap };
+
+    const nullTerminator = reader.readByte();
+    console.assert(nullTerminator === 0x0, "Expected null terminator");
+    
+    return new ErrorResponse(errorResponse);
   }
+}
+
+interface PostgresErrorResponse {
+  severity?: string;
+  code?: string; // SQLSTATE code
+  message?: string;
+  detail?: string;
+  hint?: string;
+  position?: string;
+  internalQuery?: string;
+  where?: string;
+  schema?: string;
+  table?: string;
+  column?: string;
+  dataType?: string;
+  constraint?: string;
+  file?: string;
+  line?: string;
+  routine?: string;
 }
 
 /**
@@ -310,6 +399,8 @@ export class DataRow {
 }
 
 /**
+ * RowDescription (B)
+ *
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-ROWDESCRIPTION PostgreSQL Docs}
  */
 export class RowDescription {
@@ -370,6 +461,323 @@ export class ReadyForQuery {
     console.assert(length === 5, `Expected length 5, got ${length}`);
     const transactionStatus = reader.readByte();
     return new ReadyForQuery(transactionStatus);
+  }
+}
+
+/**
+ * Parse (F)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-PARSECOMPLETE PostgreSQL Docs}
+ */
+export class Parse {
+  static get CODE() {
+    // 'P'
+    return 0x50 as const;
+  }
+
+  constructor(
+    /** The name of the destination prepared statement (an empty string selects the unnamed prepared statement). */
+    public name: string,
+    /** The query string to be parsed.  */
+    public query: string,
+    public paramTypes: number[],
+  ) {}
+
+  get buffer() {
+    const writer = new BinaryWriter();
+    writer.writeString(this.name);
+    writer.writeString(this.query);
+    writer.writeInt16(this.paramTypes.length);
+    for (const paramType of this.paramTypes) {
+      writer.writeInt32(paramType);
+    }
+    writer.unshift(
+      new BinaryWriter(5)
+        .writeByte(Parse.CODE)
+        .writeInt32(4 + writer.byteLength).buffer,
+    );
+    return writer.buffer;
+  }
+
+  static parse(buffer: ArrayBufferLike) {
+    const reader = new BinaryReader(buffer);
+    const code = reader.readByte();
+    console.assert(
+      code === Parse.CODE,
+      `Expected 'P', got ${String.fromCharCode(code)}`,
+    );
+    const length = reader.readInt32();
+    const name = reader.readString();
+    const query = reader.readString();
+    const numParamTypes = reader.readInt16();
+    const paramTypes = new Array<number>(numParamTypes);
+    for (let i = 0; i < numParamTypes; i++) {
+      paramTypes[i] = reader.readInt32();
+    }
+    return new Parse(name, query, paramTypes);
+  }
+}
+
+/**
+ * ParseComplete (B)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-PARSECOMPLETE PostgreSQL Docs}
+ */
+export class ParseComplete {
+  static get CODE() {
+    // '1'
+    return 0x31 as const;
+  }
+
+  get buffer() {
+    const writer = new BinaryWriter();
+    writer.writeByte(ParseComplete.CODE);
+    writer.writeInt32(4);
+    return writer.buffer;
+  }
+
+  static parse(buffer: ArrayBufferLike) {
+    const reader = new BinaryReader(buffer);
+    const code = reader.readByte();
+    console.assert(
+      code === ParseComplete.CODE,
+      `Expected '1', got ${String.fromCharCode(code)}`,
+    );
+    const length = reader.readInt32();
+    console.assert(length === 4, `Expected length 4, got ${length}`);
+    return new ParseComplete();
+  }
+}
+
+/**
+ * Describe (F)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-DESCRIBE PostgreSQL Docs}
+ */
+export class Describe {
+  static get CODE() {
+    // 'D'
+    return 0x44 as const;
+  }
+
+  constructor(public type: "S" | "P", public name: string) {}
+
+  get buffer() {
+    const writer = new BinaryWriter();
+    writer.writeByte(this.type);
+    writer.writeString(this.name);
+    writer.unshift(
+      new BinaryWriter(5)
+        .writeByte(Describe.CODE)
+        .writeInt32(4 + writer.byteLength).buffer,
+    );
+    return writer.buffer;
+  }
+}
+
+/**
+ * Bind (F)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BIND PostgreSQL Docs}
+ */
+export class Bind {
+  static get CODE() {
+    // 'B'
+    return 0x42 as const;
+  }
+
+  constructor(
+    /** The name of the destination portal (an empty string selects the unnamed portal). */
+    public destinationName: string,
+    /** The name of the source prepared statement (an empty string selects the unnamed prepared statement). */
+    public sourceName: string,
+    /** The parameter values. */
+    public parameterValues: ReadonlyArray<null | string | Uint8Array>,
+    /**
+     * The result-column format codes. Each must presently be zero (text) or one (binary).
+     *
+     * This can be zero to indicate that there are no result columns or that the result columns should all use the default format (text); or one, in which case the specified format code is applied to all result columns (if any); or it can equal the actual number of result columns of the query.
+     * */
+    public resultFormatCodes: ReadonlyArray<0 | 1>,
+  ) {}
+
+  get buffer() {
+    const writer = new BinaryWriter();
+    writer.writeString(this.destinationName);
+    writer.writeString(this.sourceName);
+
+    // parameter format codes
+    // TODO: there are some optimizations that can be done here if all parameters are the same type
+    writer.writeInt16(this.parameterValues.length);
+    for (const value of this.parameterValues) {
+      if (value === null) {
+        // NULL could be either 0 or 1
+        writer.writeInt16(0);
+      } else if (typeof value === "string") {
+        writer.writeInt16(0);
+      } else if (value instanceof Uint8Array) {
+        writer.writeInt16(1);
+      } else {
+        throw new TypeError(
+          "Expected string or Uint8Array for parameter value",
+        );
+      }
+    }
+
+    // parameter values
+    writer.writeInt16(this.parameterValues.length);
+    for (const value of this.parameterValues) {
+      if (value === null) {
+        writer.writeInt32(-1);
+      } else if (typeof value === "string") {
+        writer.writeInt32(value.length);
+        writer.encodeInto(value);
+      } else if (value instanceof Uint8Array) {
+        writer.writeInt32(value.byteLength);
+        writer.writeBuffer(value);
+      } else {
+        throw new TypeError(
+          "Expected string or Uint8Array for parameter value",
+        );
+      }
+    }
+
+    // result format codes, if applicable
+    writer.writeInt16(this.resultFormatCodes.length);
+    for (const formatCode of this.resultFormatCodes) {
+      writer.writeInt16(formatCode);
+    }
+
+    writer.unshift(
+      new BinaryWriter(5).writeByte(Bind.CODE).writeInt32(4 + writer.byteLength)
+        .buffer,
+    );
+    return writer.buffer;
+  }
+}
+
+/**
+ * BindComplete (B)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BINDCOMPLETE PostgreSQL Docs}
+ */
+export class BindComplete {
+  static get CODE() {
+    // '2'
+    return 0x32 as const;
+  }
+
+  get buffer() {
+    const writer = new BinaryWriter();
+    writer.writeByte(ParseComplete.CODE);
+    writer.writeInt32(4);
+    return writer.buffer;
+  }
+
+  static parse(buffer: ArrayBufferLike) {
+    const reader = new BinaryReader(buffer);
+    const code = reader.readByte();
+    console.assert(
+      code === BindComplete.CODE,
+      `Expected '2', got ${String.fromCharCode(code)}`,
+    );
+    const length = reader.readInt32();
+    console.assert(length === 4, `Expected length 4, got ${length}`);
+    return new BindComplete();
+  }
+}
+
+/**
+ * Execute (F)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-EXECUTE PostgreSQL Docs}
+ */
+export class Execute {
+  static get CODE() {
+    // 'E'
+    return 0x45 as const;
+  }
+
+  constructor(
+    /** The name of the portal to execute (an empty string selects the unnamed portal). */
+    public name: string = "",
+    /** Maximum number of rows to return, if portal contains a query that returns rows (ignored otherwise). Zero denotes “no limit”. */
+    public limit: number = 0,
+  ) {}
+
+  get buffer() {
+    const writer = new BinaryWriter();
+    writer.writeString(this.name);
+    writer.writeInt32(this.limit);
+    writer.unshift(
+      new BinaryWriter(5)
+        .writeByte(Execute.CODE)
+        .writeInt32(4 + writer.byteLength).buffer,
+    );
+    return writer.buffer;
+  }
+}
+
+/**
+ * Sync (F)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-SYNC PostgreSQL Docs}
+ */
+export class Sync {
+  static get CODE() {
+    // 'S'
+    return 0x53 as const;
+  }
+
+  get buffer() {
+    const writer = new BinaryWriter(5);
+    writer.writeByte(Sync.CODE);
+    writer.writeInt32(4);
+    return writer.buffer;
+  }
+}
+
+export class ParameterDescription {
+  static get CODE() {
+    // 't'
+    return 0x74 as const;
+  }
+
+  constructor(public parameterTypes: ReadonlyArray<number>) {}
+
+  static parse(buffer: ArrayBufferLike) {
+    const reader = new BinaryReader(buffer);
+    const code = reader.readByte();
+    console.assert(
+      code === ParameterDescription.CODE,
+      `Expected 't', got ${String.fromCharCode(code)}`,
+    );
+    const length = reader.readInt32();
+    const numParams = reader.readInt16();
+    const paramTypes = new Array<number>(numParams);
+    for (let i = 0; i < numParams; i++) {
+      paramTypes[i] = reader.readInt32();
+    }
+    return new ParameterDescription(paramTypes);
+  }
+}
+
+/**
+ * Flush (F)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-FLUSH PostgreSQL Docs}
+ */
+export class Flush {
+  static get CODE() {
+    // 'F'
+    return 0x46 as const;
+  }
+
+  get buffer() {
+    const writer = new BinaryWriter(5);
+    writer.writeByte(Flush.CODE);
+    writer.writeInt32(4);
+    return writer.buffer;
   }
 }
 

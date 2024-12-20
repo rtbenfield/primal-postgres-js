@@ -7,7 +7,7 @@ expect.addEqualityTesters([
     if (a instanceof Uint8Array && b instanceof Uint8Array) {
       return a.byteLength === b.byteLength && a.every((v, i) => v === b[i]);
     } else {
-      return false;
+      return undefined;
     }
   },
 ]);
@@ -23,6 +23,42 @@ test("scratch", async () => {
   });
 
   const connection = await client.connect();
-  const result = await connection.query('SELECT 1, 2 AS "two"');
-  console.log("!!!!!!!!", result.columns);
+
+  // {
+  //   const results = await connection.query("SELECT 1 UNION ALL SELECT 2");
+  //   const resultsReader = results.getReader();
+  //   await expect(resultsReader.read()).resolves.toEqual({
+  //     done: false,
+  //     value: expect.anything(),
+  //   });
+  //   await expect(resultsReader.read()).resolves.toEqual({
+  //     done: false,
+  //     value: expect.anything(),
+  //   });
+  //   await expect(resultsReader.read()).resolves.toEqual({
+  //     done: true,
+  //     value: undefined,
+  //   });
+  // }
+
+  {
+    console.log("------------------------------");
+    const results = await connection.query2("SELECT $1 UNION ALL SELECT $2", [
+      "1",
+      "2",
+    ]);
+    const resultsReader = results.getReader();
+    await expect(resultsReader.read()).resolves.toEqual({
+      done: false,
+      value: expect.anything(),
+    });
+    await expect(resultsReader.read()).resolves.toEqual({
+      done: false,
+      value: expect.anything(),
+    });
+    await expect(resultsReader.read()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    });
+  }
 });
