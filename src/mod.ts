@@ -86,15 +86,22 @@ export class Connection {
     const reader = this.#socket.readable.getReader();
     const writer = this.#socket.writable.getWriter();
     try {
-      await writer.write(new Parse("", sql, []).buffer);
-      await writer.write(new Describe("S", "").buffer);
-      await writer.write(new Bind("", "", parameters, []).buffer);
-      await writer.write(new Execute("").buffer);
-      await writer.write(new Sync().buffer);
-      // ? is a Flush necessary?
-      // Postgres buffers the responses to minimize back-and-forth
-      // the Sync seems to cause a flush, but I'm not sure if that's consistent
-      await writer.write(new Flush().buffer);
+      // we can write all of the messages in one shot for efficiency
+      await writer.write(
+        new Uint8Array(
+          combineArrayBuffers(
+            new Parse("", sql, []).buffer,
+            new Describe("S", "").buffer,
+            new Bind("", "", parameters, []).buffer,
+            new Execute("").buffer,
+            new Sync().buffer,
+            // ? is a Flush necessary?
+            // Postgres buffers the responses to minimize back-and-forth
+            // the Sync seems to cause a flush, but I'm not sure if that's consistent
+            new Flush().buffer
+          )
+        )
+      );
 
       const parameterDescriptions = new Array<ParameterDescription>();
       const rowDescriptions = new Array<RowDescription>();
@@ -244,4 +251,31 @@ class PostgresMessageSplitStream extends TransformStream<
       },
     });
   }
+}
+
+/**
+ * Combines an array of ArrayBuffer objects into a single ArrayBuffer.
+ * Note that this method is not yet zero-copy.
+ * Unfortunately, there is no zero-copy support in ArrayBufer yet.
+ * @param buffers An array of ArrayBuffer or ArrayBufferView objects to combine.
+ * @returns A single ArrayBuffer concatenating all the input buffers.
+ */
+function combineArrayBuffers(
+  ...buffers: ReadonlyArray<ArrayBufferLike | ArrayBufferView>
+): ArrayBuffer {
+  const totalLength = buffers.reduce(
+    (sum, buffer) => sum + buffer.byteLength,
+    0
+  );
+  const combinedBuffer = new ArrayBuffer(totalLength);
+  const combinedView = new Uint8Array(combinedBuffer);
+  let offset = 0;
+  for (const buffer of buffers) {
+    const view = new Uint8Array(
+      ArrayBuffer.isView(buffer) ? buffer.buffer : buffer
+    );
+    combinedView.set(view, offset);
+    offset += view.length;
+  }
+  return combinedBuffer;
 }
