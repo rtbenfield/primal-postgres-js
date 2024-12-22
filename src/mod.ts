@@ -163,30 +163,3 @@ class PostgresMessageSplitStream extends TransformStream<
     });
   }
 }
-
-/**
- * Combines an array of ArrayBuffer objects into a single ArrayBuffer.
- * Note that this method is not yet zero-copy.
- * Unfortunately, there is no zero-copy support in ArrayBufer yet.
- * @param buffers An array of ArrayBuffer or ArrayBufferView objects to combine.
- * @returns A single ArrayBuffer concatenating all the input buffers.
- */
-function combineArrayBuffers(
-  ...buffers: ReadonlyArray<ArrayBufferLike | ArrayBufferView>
-): ArrayBuffer {
-  const totalLength = buffers.reduce(
-    (sum, buffer) => sum + buffer.byteLength,
-    0,
-  );
-  const combinedBuffer = new ArrayBuffer(totalLength);
-  const combinedView = new Uint8Array(combinedBuffer);
-  let offset = 0;
-  for (const buffer of buffers) {
-    const view = new Uint8Array(
-      ArrayBuffer.isView(buffer) ? buffer.buffer : buffer,
-    );
-    combinedView.set(view, offset);
-    offset += view.length;
-  }
-  return combinedBuffer;
-}
