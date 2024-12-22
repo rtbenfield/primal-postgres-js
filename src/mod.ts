@@ -79,7 +79,7 @@ export class Connection {
     return await executeSequenceStream(this.#socket, simpleQuerySequence(sql));
   }
 
-  async query2(
+  async extendedQuery(
     sql: string,
     parameters: ReadonlyArray<null | string | Uint8Array>,
   ) {

@@ -43,10 +43,10 @@ test("scratch", async () => {
 
   {
     console.log("------------------------------");
-    const results = await connection.query2("SELECT $1 UNION ALL SELECT $2", [
-      "1",
-      "2",
-    ]);
+    const results = await connection.extendedQuery(
+      "SELECT $1 UNION ALL SELECT $2",
+      ["1", "2"],
+    );
     const resultsReader = results.getReader();
     await expect(resultsReader.read()).resolves.toEqual({
       done: false,
