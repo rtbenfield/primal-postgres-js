@@ -148,11 +148,7 @@ class PostgresMessageSplitStream extends TransformStream<
         let buffer = chunk;
 
         while (buffer.byteLength > 0) {
-          const reader = new BinaryReader(
-            buffer.buffer,
-            buffer.byteOffset,
-            buffer.byteLength,
-          );
+          const reader = new BinaryReader(buffer);
           reader.readByte();
           const packetLength = reader.readInt32() + 1;
           const packet = buffer.subarray(0, packetLength);

@@ -25,7 +25,7 @@ export async function* startupSequence(
     replication: connection.replication,
   });
 
-  const result = authenticationSwitch(reply.buffer);
+  const result = authenticationSwitch(reply);
   if (result instanceof AuthenticationOK) {
     // authentication is complete
     reply = yield SKIP;
@@ -47,7 +47,7 @@ async function* scramSha256Sequence(
     `n,,n=${user},r=${clientNonce}`,
   ).buffer;
 
-  const serverFirstMessage = AuthenticationSASLContinue.parse(reply.buffer);
+  const serverFirstMessage = AuthenticationSASLContinue.parse(reply);
   const attributes = new Map(
     serverFirstMessage.payload
       .split(",")
@@ -80,9 +80,7 @@ async function* scramSha256Sequence(
   reply = yield new SASLResponse(`c=biws,r=${serverNonce},p=${clientProof}`)
     .buffer;
 
-  const serverFinalMessage = AuthenticationSASLFinal.parse(
-    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
-  );
+  const serverFinalMessage = AuthenticationSASLFinal.parse(reply);
 
   // compute the expected server signature
   const serverSignature = await hmac(saltedPassword, "Server Key")
@@ -113,34 +111,19 @@ async function* scramSha256Sequence(
       case 0x4b: // 'K'
         console.log(
           "TODO",
-          BackendKeyData.parse(
-            reply.buffer.slice(
-              reply.byteOffset,
-              reply.byteOffset + reply.byteLength,
-            ),
-          ),
+          BackendKeyData.parse(reply),
         );
         break;
       case 0x52:
         console.log(
           "TODO",
-          AuthenticationOK.parse(
-            reply.buffer.slice(
-              reply.byteOffset,
-              reply.byteOffset + reply.byteLength,
-            ),
-          ),
+          AuthenticationOK.parse(reply),
         );
         break;
       case 0x53: // 'S'
         console.log(
           "TODO",
-          ParameterStatus.parse(
-            reply.buffer.slice(
-              reply.byteOffset,
-              reply.byteOffset + reply.byteLength,
-            ),
-          ),
+          ParameterStatus.parse(reply),
         );
         break;
       default:
@@ -150,9 +133,7 @@ async function* scramSha256Sequence(
     reply = yield SKIP;
   }
 
-  const ready = ReadyForQuery.parse(
-    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
-  );
+  const ready = ReadyForQuery.parse(reply);
   console.log("READY", ready);
 }
 

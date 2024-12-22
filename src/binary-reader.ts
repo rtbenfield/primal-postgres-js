@@ -3,13 +3,18 @@ const decoder = new TextDecoder("utf-8");
 export class BinaryReader {
   #position = 0;
   readonly #view: DataView;
+  readonly #buffer: Uint8Array;
 
-  constructor(
-    buffer: ArrayBufferLike,
-    byteOffset?: number,
-    byteLength?: number,
-  ) {
-    this.#view = new DataView(buffer, byteOffset, byteLength);
+  constructor(buffer: Uint8Array) {
+    this.#buffer = buffer;
+
+    //! retain the original offset and length of the Uint8Array
+    // this is important because the ArrayBuffer may contain multiple messages
+    this.#view = new DataView(
+      buffer.buffer,
+      buffer.byteOffset,
+      buffer.byteLength,
+    );
   }
 
   get remaining() {
@@ -17,10 +22,7 @@ export class BinaryReader {
   }
 
   get rest() {
-    return new Uint8Array(
-      this.#view.buffer,
-      this.#view.byteOffset + this.#position,
-    );
+    return this.#buffer.subarray(this.#position);
   }
 
   peekByte() {
@@ -28,9 +30,9 @@ export class BinaryReader {
   }
 
   readBuffer(length: number) {
-    const buffer = this.#view.buffer.slice(
-      this.#view.byteOffset + this.#position,
-      this.#view.byteOffset + this.#position + length,
+    const buffer = this.#buffer.subarray(
+      this.#position,
+      this.#position + length,
     );
     this.#position += length;
     return buffer;
@@ -68,7 +70,6 @@ export class BinaryReader {
     this.#position++;
 
     // decode the string from the bytes
-    const buffer = this.#view.buffer.slice(start, start + length);
-    return decoder.decode(new Uint8Array(buffer));
+    return decoder.decode(this.#buffer.subarray(start, start + length));
   }
 }

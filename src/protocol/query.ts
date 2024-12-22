@@ -25,40 +25,23 @@ export async function* simpleQuerySequence(
 ): Sequence<TransformStream<Uint8Array, DataRow>> {
   // TODO: this is a minimal implementation that does not handle much yet
   let reply = yield new Query(sql).buffer;
-  const rowDescription = RowDescription.parse(
-    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
-  );
+  const rowDescription = RowDescription.parse(reply);
 
   return new TransformStream<Uint8Array, DataRow>({
     transform(chunk, controller) {
       switch (chunk.at(0)) {
         case DataRow.CODE: {
-          const dataRow = DataRow.parse(
-            chunk.buffer.slice(
-              chunk.byteOffset,
-              chunk.byteOffset + chunk.byteLength,
-            ),
-          );
+          const dataRow = DataRow.parse(chunk);
           controller.enqueue(dataRow);
           break;
         }
         case CommandComplete.CODE: {
-          CommandComplete.parse(
-            chunk.buffer.slice(
-              chunk.byteOffset,
-              chunk.byteOffset + chunk.byteLength,
-            ),
-          );
+          CommandComplete.parse(chunk);
           console.info("commandComplete");
           break;
         }
         case ReadyForQuery.CODE: {
-          ReadyForQuery.parse(
-            chunk.buffer.slice(
-              chunk.byteOffset,
-              chunk.byteOffset + chunk.byteLength,
-            ),
-          );
+          ReadyForQuery.parse(chunk);
           controller.terminate();
           break;
         }
@@ -93,43 +76,39 @@ export async function* extendedQuerySequence(
   const rowDescriptions = new Array<RowDescription>();
   return new TransformStream<Uint8Array, DataRow>({
     transform(message, controller) {
-      const replyBuffer = message.buffer.slice(
-        message.byteOffset,
-        message.byteOffset + message.byteLength,
-      );
       switch (message.at(0)) {
         case BindComplete.CODE: {
-          BindComplete.parse(replyBuffer);
+          BindComplete.parse(message);
           return;
         }
         case ParseComplete.CODE: {
           return;
         }
         case ParameterDescription.CODE: {
-          const parameterDescription = ParameterDescription.parse(replyBuffer);
+          const parameterDescription = ParameterDescription.parse(message);
           parameterDescriptions.push(parameterDescription);
           return;
         }
         case RowDescription.CODE: {
-          const rowDescription = RowDescription.parse(replyBuffer);
+          const rowDescription = RowDescription.parse(message);
           rowDescriptions.push(rowDescription);
           return;
         }
         case ErrorResponse.CODE: {
-          const errorResponse = ErrorResponse.parse(replyBuffer);
+          const errorResponse = ErrorResponse.parse(message);
           throw errorResponse;
         }
         case DataRow.CODE: {
-          const dataRow = DataRow.parse(replyBuffer);
+          const dataRow = DataRow.parse(message);
           controller.enqueue(dataRow);
           return;
         }
         case CommandComplete.CODE: {
-          CommandComplete.parse(replyBuffer);
+          CommandComplete.parse(message);
           return;
         }
         case ReadyForQuery.CODE: {
-          ReadyForQuery.parse(replyBuffer);
+          ReadyForQuery.parse(message);
           controller.terminate();
           return;
         }

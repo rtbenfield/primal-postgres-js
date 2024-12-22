@@ -17,7 +17,7 @@ export class ErrorResponse {
 
   constructor(public fields: PostgresErrorResponse) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
 
     const code = reader.readByte();
@@ -116,7 +116,7 @@ interface PostgresErrorResponse {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-AUTHENTICATIONOK PostgreSQL Docs}
  */
 export class AuthenticationOK {
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -136,7 +136,7 @@ export class AuthenticationOK {
 export class AuthenticationSASL {
   constructor(public mechanisms: Set<string>) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -162,7 +162,7 @@ export class AuthenticationSASL {
 export class AuthenticationSASLContinue {
   constructor(public payload: string) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -189,7 +189,7 @@ export class AuthenticationSASLContinue {
 export class AuthenticationSASLFinal {
   constructor(public payload: string) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -219,7 +219,7 @@ export class BackendKeyData {
     public secretKey: number,
   ) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -243,7 +243,7 @@ export class ParameterStatus {
     public value: string,
   ) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -372,7 +372,7 @@ export class CommandComplete {
 
   constructor(public commandTag: string) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -396,7 +396,7 @@ export class DataRow {
 
   constructor(public columns: unknown[]) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -432,7 +432,7 @@ export class RowDescription {
 
   constructor(public columns: unknown[]) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -471,7 +471,7 @@ export class ReadyForQuery {
 
   constructor(public transactionStatus: number) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -520,7 +520,7 @@ export class Parse {
     return writer.buffer;
   }
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -557,7 +557,7 @@ export class ParseComplete {
     return writer.buffer;
   }
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -698,7 +698,7 @@ export class BindComplete {
     return writer.buffer;
   }
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -769,7 +769,7 @@ export class ParameterDescription {
 
   constructor(public parameterTypes: ReadonlyArray<number>) {}
 
-  static parse(buffer: ArrayBufferLike) {
+  static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
@@ -806,7 +806,7 @@ export class Flush {
 }
 
 /** Determines which authentication response packet was returned. */
-export function authenticationSwitch(buffer: ArrayBufferLike) {
+export function authenticationSwitch(buffer: Uint8Array) {
   const reader = new BinaryReader(buffer);
   const code = reader.readByte();
   console.assert(
