@@ -12,13 +12,27 @@ export async function executeSequence<T>(
       // get the first packet
       let outbox = await sequence.next();
       while (!outbox.done) {
-        if (outbox.value !== SKIP) {
+        if (outbox.value instanceof Uint8Array) {
           // send the packet to the database
           const firstByte = String.fromCharCode(outbox.value.at(0)!);
           console.debug(`--> [${firstByte}]`, Buffer.from(outbox.value));
           await writer.write(outbox.value);
+        } else if (outbox.value !== SKIP) {
+          // outbox.value must be ReadonlyArray<Uint8Array>
+          // Array.isArray turns the type into an `any` 😞
+
+          // debug only
+          for (const message of outbox.value) {
+            const firstByte = String.fromCharCode(message.at(0)!);
+            console.debug(`--> [${firstByte}]`, Buffer.from(message));
+          }
+
+          // we can write all of the messages in one shot for efficiency
+          await writer.write(
+            new Uint8Array(combineArrayBuffers(...outbox.value)),
+          );
         }
-        // receive the next packet
+        // receive the next message
         // console.debug("...waiting for reply...");
         const inbox = await reader.read();
         if (inbox.done) {
@@ -26,7 +40,7 @@ export async function executeSequence<T>(
         }
         const firstByte = String.fromCharCode(inbox.value.at(0)!);
         console.debug(`<-- [${firstByte}]`, Buffer.from(inbox.value));
-        // pass the repy packet back into the sequence
+        // pass the repy message back into the sequence
         outbox = await sequence.next(inbox.value);
       }
       return outbox.value;
@@ -60,6 +74,8 @@ export async function executeSequenceStream<T>(
           if (nextResult.done) {
             throw new Error(`connection was closed unexpectedly`);
           }
+          const firstByte = String.fromCharCode(nextResult.value.at(0)!);
+          console.debug(`<-- [${firstByte}]`, Buffer.from(nextResult.value));
           controller.enqueue(nextResult.value);
         },
       }).pipeThrough(transformer);
@@ -75,7 +91,34 @@ export async function executeSequenceStream<T>(
 
 export const SKIP = Symbol("skip");
 export type Sequence<T> = AsyncGenerator<
-  Uint8Array | typeof SKIP,
+  Uint8Array | ReadonlyArray<Uint8Array> | typeof SKIP,
   T,
   Uint8Array
 >;
+
+/**
+ * Combines an array of ArrayBuffer objects into a single ArrayBuffer.
+ * Note that this method is not yet zero-copy.
+ * Unfortunately, there is no zero-copy support in ArrayBufer yet.
+ * @param buffers An array of ArrayBuffer or ArrayBufferView objects to combine.
+ * @returns A single ArrayBuffer concatenating all the input buffers.
+ */
+function combineArrayBuffers(
+  ...buffers: ReadonlyArray<ArrayBufferLike | ArrayBufferView>
+): ArrayBuffer {
+  const totalLength = buffers.reduce(
+    (sum, buffer) => sum + buffer.byteLength,
+    0,
+  );
+  const combinedBuffer = new ArrayBuffer(totalLength);
+  const combinedView = new Uint8Array(combinedBuffer);
+  let offset = 0;
+  for (const buffer of buffers) {
+    const view = new Uint8Array(
+      ArrayBuffer.isView(buffer) ? buffer.buffer : buffer,
+    );
+    combinedView.set(view, offset);
+    offset += view.length;
+  }
+  return combinedBuffer;
+}

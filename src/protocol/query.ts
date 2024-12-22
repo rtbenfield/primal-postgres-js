@@ -4,12 +4,16 @@ import {
   CommandComplete,
   DataRow,
   Describe,
+  ErrorResponse,
   Execute,
+  Flush,
+  ParameterDescription,
   Parse,
   ParseComplete,
   Query,
   ReadyForQuery,
   RowDescription,
+  Sync,
 } from "../protocol";
 import { Sequence } from "../sequence";
 
@@ -72,56 +76,67 @@ export async function* extendedQuerySequence(
 ): Sequence<TransformStream<Uint8Array, DataRow>> {
   // TODO: this is a minimal implementation that does not handle much yet
 
-  let reply = yield new Parse("", sql, []).buffer;
-  ParseComplete.parse(
-    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
-  );
+  // we can write all of the messages in one shot for efficiency
+  yield [
+    new Parse("", sql, []).buffer,
+    new Describe("S", "").buffer,
+    new Bind("", "", parameters, []).buffer,
+    new Execute("").buffer,
+    new Sync().buffer,
+    // ? is a Flush necessary?
+    // Postgres buffers the responses to minimize back-and-forth
+    // the Sync seems to cause a flush, but I'm not sure if that's consistent
+    new Flush().buffer,
+  ];
 
-  reply = yield new Describe("S", "foo").buffer;
-  // TODO: ParameterDescription
-  RowDescription.parse(
-    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
-  );
-
-  reply = yield new Bind("", "foo", parameters, []).buffer;
-  BindComplete.parse(
-    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
-  );
-
-  reply = yield new Execute().buffer;
-
+  const parameterDescriptions = new Array<ParameterDescription>();
+  const rowDescriptions = new Array<RowDescription>();
   return new TransformStream<Uint8Array, DataRow>({
-    transform(chunk, controller) {
-      switch (chunk.at(0)) {
+    transform(message, controller) {
+      const replyBuffer = message.buffer.slice(
+        message.byteOffset,
+        message.byteOffset + message.byteLength,
+      );
+      switch (message.at(0)) {
+        case BindComplete.CODE: {
+          BindComplete.parse(replyBuffer);
+          return;
+        }
+        case ParseComplete.CODE: {
+          return;
+        }
+        case ParameterDescription.CODE: {
+          const parameterDescription = ParameterDescription.parse(replyBuffer);
+          parameterDescriptions.push(parameterDescription);
+          return;
+        }
+        case RowDescription.CODE: {
+          const rowDescription = RowDescription.parse(replyBuffer);
+          rowDescriptions.push(rowDescription);
+          return;
+        }
+        case ErrorResponse.CODE: {
+          const errorResponse = ErrorResponse.parse(replyBuffer);
+          throw errorResponse;
+        }
         case DataRow.CODE: {
-          const dataRow = DataRow.parse(
-            chunk.buffer.slice(
-              chunk.byteOffset,
-              chunk.byteOffset + chunk.byteLength,
-            ),
-          );
+          const dataRow = DataRow.parse(replyBuffer);
           controller.enqueue(dataRow);
-          break;
+          return;
         }
         case CommandComplete.CODE: {
-          CommandComplete.parse(
-            chunk.buffer.slice(
-              chunk.byteOffset,
-              chunk.byteOffset + chunk.byteLength,
-            ),
-          );
-          console.info("commandComplete");
-          break;
+          CommandComplete.parse(replyBuffer);
+          return;
         }
         case ReadyForQuery.CODE: {
-          ReadyForQuery.parse(
-            chunk.buffer.slice(
-              chunk.byteOffset,
-              chunk.byteOffset + chunk.byteLength,
-            ),
-          );
+          ReadyForQuery.parse(replyBuffer);
           controller.terminate();
-          break;
+          return;
+        }
+        default: {
+          throw new Error(
+            `Unexpected packet type ${String.fromCharCode(message.at(0)!)}`,
+          );
         }
       }
     },

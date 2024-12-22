@@ -15,7 +15,7 @@ import {
   RowDescription,
   Sync,
 } from "./protocol";
-import { simpleQuerySequence } from "./protocol/query";
+import { extendedQuerySequence, simpleQuerySequence } from "./protocol/query";
 import { startupSequence } from "./protocol/startup";
 import { executeSequence, executeSequenceStream } from "./sequence";
 
@@ -83,99 +83,10 @@ export class Connection {
     sql: string,
     parameters: ReadonlyArray<null | string | Uint8Array>,
   ) {
-    const reader = this.#socket.readable.getReader();
-    const writer = this.#socket.writable.getWriter();
-    try {
-      // we can write all of the messages in one shot for efficiency
-      await writer.write(
-        new Uint8Array(
-          combineArrayBuffers(
-            new Parse("", sql, []).buffer,
-            new Describe("S", "").buffer,
-            new Bind("", "", parameters, []).buffer,
-            new Execute("").buffer,
-            new Sync().buffer,
-            // ? is a Flush necessary?
-            // Postgres buffers the responses to minimize back-and-forth
-            // the Sync seems to cause a flush, but I'm not sure if that's consistent
-            new Flush().buffer,
-          ),
-        ),
-      );
-
-      const parameterDescriptions = new Array<ParameterDescription>();
-      const rowDescriptions = new Array<RowDescription>();
-      const dataRows = new Array<DataRow>();
-      while (true) {
-        const reply = await reader.read();
-        if (reply.done) {
-          throw new Error(`connection was closed unexpectedly`);
-        }
-        console.info(
-          "<--",
-          String.fromCharCode(reply.value.at(0)!),
-          // reply.value,
-        );
-        const replyBuffer = reply.value.buffer.slice(
-          reply.value.byteOffset,
-          reply.value.byteOffset + reply.value.byteLength,
-        );
-        switch (reply.value.at(0)) {
-          case BindComplete.CODE: {
-            BindComplete.parse(replyBuffer);
-            continue;
-          }
-          case ParseComplete.CODE: {
-            continue;
-          }
-          case ParameterDescription.CODE: {
-            const parameterDescription =
-              ParameterDescription.parse(replyBuffer);
-            parameterDescriptions.push(parameterDescription);
-            continue;
-          }
-          case RowDescription.CODE: {
-            const rowDescription = RowDescription.parse(replyBuffer);
-            rowDescriptions.push(rowDescription);
-            continue;
-          }
-          case ErrorResponse.CODE: {
-            const errorResponse = ErrorResponse.parse(replyBuffer);
-            throw errorResponse;
-          }
-          case DataRow.CODE: {
-            const dataRow = DataRow.parse(replyBuffer);
-            dataRows.push(dataRow);
-            continue;
-          }
-          case CommandComplete.CODE: {
-            CommandComplete.parse(replyBuffer);
-            continue;
-          }
-          case ReadyForQuery.CODE: {
-            ReadyForQuery.parse(replyBuffer);
-            return new ReadableStream({
-              start(controller) {
-                for (const dataRow of dataRows) {
-                  controller.enqueue(dataRow);
-                }
-                controller.close();
-              },
-            });
-          }
-          default: {
-            throw new Error(
-              `Unexpected packet type ${String.fromCharCode(
-                reply.value.at(0)!,
-              )}`,
-            );
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-      writer.releaseLock();
-    }
+    return await executeSequenceStream(
+      this.#socket,
+      extendedQuerySequence(sql, parameters),
+    );
   }
 }
 
