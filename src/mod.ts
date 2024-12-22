@@ -54,7 +54,7 @@ export class Client {
   async connect(): Promise<Connection> {
     const socket = await this.#options.socket(
       this.#connection.hostname,
-      this.#connection.port
+      this.#connection.port,
     );
 
     const patchedSocket: Socket = {
@@ -81,7 +81,7 @@ export class Connection {
 
   async query2(
     sql: string,
-    parameters: ReadonlyArray<null | string | Uint8Array>
+    parameters: ReadonlyArray<null | string | Uint8Array>,
   ) {
     const reader = this.#socket.readable.getReader();
     const writer = this.#socket.writable.getWriter();
@@ -98,9 +98,9 @@ export class Connection {
             // ? is a Flush necessary?
             // Postgres buffers the responses to minimize back-and-forth
             // the Sync seems to cause a flush, but I'm not sure if that's consistent
-            new Flush().buffer
-          )
-        )
+            new Flush().buffer,
+          ),
+        ),
       );
 
       const parameterDescriptions = new Array<ParameterDescription>();
@@ -113,12 +113,12 @@ export class Connection {
         }
         console.info(
           "<--",
-          String.fromCharCode(reply.value.at(0)!)
+          String.fromCharCode(reply.value.at(0)!),
           // reply.value,
         );
         const replyBuffer = reply.value.buffer.slice(
           reply.value.byteOffset,
-          reply.value.byteOffset + reply.value.byteLength
+          reply.value.byteOffset + reply.value.byteLength,
         );
         switch (reply.value.at(0)) {
           case BindComplete.CODE: {
@@ -166,8 +166,8 @@ export class Connection {
           default: {
             throw new Error(
               `Unexpected packet type ${String.fromCharCode(
-                reply.value.at(0)!
-              )}`
+                reply.value.at(0)!,
+              )}`,
             );
           }
         }
@@ -180,7 +180,7 @@ export class Connection {
 }
 
 function resolveConnection(
-  connection: string | URL | ConnectionOptions
+  connection: string | URL | ConnectionOptions,
 ): ResolvedConnectionOptions {
   if (connection instanceof URL) {
     return {
@@ -240,7 +240,7 @@ class PostgresMessageSplitStream extends TransformStream<
           const reader = new BinaryReader(
             buffer.buffer,
             buffer.byteOffset,
-            buffer.byteLength
+            buffer.byteLength,
           );
           reader.readByte();
           const packetLength = reader.readInt32() + 1;
@@ -265,14 +265,14 @@ function combineArrayBuffers(
 ): ArrayBuffer {
   const totalLength = buffers.reduce(
     (sum, buffer) => sum + buffer.byteLength,
-    0
+    0,
   );
   const combinedBuffer = new ArrayBuffer(totalLength);
   const combinedView = new Uint8Array(combinedBuffer);
   let offset = 0;
   for (const buffer of buffers) {
     const view = new Uint8Array(
-      ArrayBuffer.isView(buffer) ? buffer.buffer : buffer
+      ArrayBuffer.isView(buffer) ? buffer.buffer : buffer,
     );
     combinedView.set(view, offset);
     offset += view.length;

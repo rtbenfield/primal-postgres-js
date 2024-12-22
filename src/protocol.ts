@@ -39,7 +39,7 @@ export class ErrorResponse {
         case 0x43: // 'C' - SQLSTATE code
           errorResponse.code = value;
           break;
-        case 0x4D: // 'M' - Message
+        case 0x4d: // 'M' - Message
           errorResponse.message = value;
           break;
         case 0x44: // 'D' - Detail
@@ -69,13 +69,13 @@ export class ErrorResponse {
         case 0x64: // 'd' - Data Type
           errorResponse.dataType = value;
           break;
-        case 0x6E: // 'n' - Constraint
+        case 0x6e: // 'n' - Constraint
           errorResponse.constraint = value;
           break;
         case 0x46: // 'F' - File
           errorResponse.file = value;
           break;
-        case 0x4C: // 'L' - Line
+        case 0x4c: // 'L' - Line
           errorResponse.line = value;
           break;
         case 0x52: // 'R' - Routine
@@ -88,7 +88,7 @@ export class ErrorResponse {
 
     const nullTerminator = reader.readByte();
     console.assert(nullTerminator === 0x0, "Expected null terminator");
-    
+
     return new ErrorResponse(errorResponse);
   }
 }
@@ -172,7 +172,13 @@ export class AuthenticationSASLContinue {
     const length = reader.readInt32();
     const tag = reader.readInt32();
     console.assert(tag === 11, `Expected 11, got ${tag}`);
-    const data = decoder.decode(new Uint8Array(reader.rest));
+    console.assert(
+      reader.remaining === length - 8,
+      `Invalid length of remaining data. Expected ${length - 8}, got ${
+        reader.remaining
+      }`,
+    );
+    const data = decoder.decode(reader.rest);
     return new AuthenticationSASLContinue(data);
   }
 }
@@ -193,7 +199,13 @@ export class AuthenticationSASLFinal {
     const length = reader.readInt32();
     const tag = reader.readInt32();
     console.assert(tag === 12, `Expected 12, got ${tag}`);
-    const data = decoder.decode(new Uint8Array(reader.rest));
+    console.assert(
+      reader.remaining === length - 8,
+      `Invalid length of remaining data. Expected ${length - 8}, got ${
+        reader.remaining
+      }`,
+    );
+    const data = decoder.decode(reader.rest);
     return new AuthenticationSASLFinal(data);
   }
 }
@@ -202,7 +214,10 @@ export class AuthenticationSASLFinal {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BACKENDKEYDATA PostgreSQL Docs}
  */
 export class BackendKeyData {
-  constructor(public pid: number, public secretKey: number) {}
+  constructor(
+    public pid: number,
+    public secretKey: number,
+  ) {}
 
   static parse(buffer: ArrayBufferLike) {
     const reader = new BinaryReader(buffer);
@@ -223,7 +238,10 @@ export class BackendKeyData {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-PARAMETERSTATUS PostgreSQL Docs}
  */
 export class ParameterStatus {
-  constructor(public parameter: string, public value: string) {}
+  constructor(
+    public parameter: string,
+    public value: string,
+  ) {}
 
   static parse(buffer: ArrayBufferLike) {
     const reader = new BinaryReader(buffer);
@@ -284,7 +302,10 @@ export function StartupMessage(options: {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-SASLINITIALRESPONSE PostgreSQL Docs}
  */
 export class SASLInitialResponse {
-  constructor(public mechanism: string, public payload?: string) {}
+  constructor(
+    public mechanism: string,
+    public payload?: string,
+  ) {}
 
   get buffer() {
     const writer = new BinaryWriter();
@@ -560,7 +581,10 @@ export class Describe {
     return 0x44 as const;
   }
 
-  constructor(public type: "S" | "P", public name: string) {}
+  constructor(
+    public type: "S" | "P",
+    public name: string,
+  ) {}
 
   get buffer() {
     const writer = new BinaryWriter();

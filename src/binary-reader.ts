@@ -17,7 +17,10 @@ export class BinaryReader {
   }
 
   get rest() {
-    return this.#view.buffer.slice(this.#position);
+    return new Uint8Array(
+      this.#view.buffer,
+      this.#view.byteOffset + this.#position,
+    );
   }
 
   peekByte() {

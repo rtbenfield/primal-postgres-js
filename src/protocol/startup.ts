@@ -14,6 +14,8 @@ import {
 } from "../protocol";
 import { Sequence, SKIP } from "../sequence";
 
+const encoder = new TextEncoder();
+
 export async function* startupSequence(
   connection: ResolvedConnectionOptions,
 ): Sequence<void> {
@@ -65,7 +67,7 @@ async function* scramSha256Sequence(
   );
   const clientKey = await hmac(saltedPassword, "Client Key");
 
-  const authMessage = `n=${user},r=${clientNonce},r=${serverNonce},s=${salt},i=${iterations},c=biws,r=${serverNonce}`;
+  const authMessage = `n=${user},r=${clientNonce},${serverFirstMessage.payload},c=biws,r=${serverNonce}`;
 
   const storedKey = await sha256(clientKey);
   const clientSignature = await hmac(storedKey, authMessage);
@@ -78,20 +80,31 @@ async function* scramSha256Sequence(
   reply = yield new SASLResponse(`c=biws,r=${serverNonce},p=${clientProof}`)
     .buffer;
 
-  const serverFinalMessage = AuthenticationSASLFinal.parse(reply.buffer);
+  const serverFinalMessage = AuthenticationSASLFinal.parse(
+    reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength),
+  );
 
-  // verify the server's signature in reply
+  // compute the expected server signature
   const serverSignature = await hmac(saltedPassword, "Server Key")
     .then((x) => hmac(x, authMessage))
     .then((x) => toBase64(new Uint8Array(x)));
-  const serverSignatureReply = serverFinalMessage.payload
-    .split(String.fromCharCode(0), 1)
-    .at(0)!
-    .slice(2);
-  // TODO: why does the reply signature always has a trailing 'R' that ours does not?
-  // if (serverSignature !== serverSignatureReply) {
-  //   throw new Error("SCRAM-SHA-256 authentication signature failed");
-  // }
+
+  // extract the attributes from the server's reply
+  const serverFinalAttributes = new Map(
+    serverFinalMessage.payload
+      .split(",")
+      .map((x) => [x[0], x.slice(2)] as const),
+  );
+
+  // verify the server's signature against our computed one
+  const serverSignatureReply = serverFinalAttributes.get("v");
+  if (serverSignature !== serverSignatureReply) {
+    console.assert(
+      false,
+      `Expected ${serverSignature}, got ${serverSignatureReply}`,
+    );
+    throw new Error("SCRAM-SHA-256 authentication signature failed");
+  }
 
   reply = yield SKIP;
 
@@ -148,14 +161,8 @@ async function saltPassword(
   salt: ArrayBuffer,
   iterations: number,
 ) {
-  const encoder = new TextEncoder();
-
   // convert password to UInt8Array
-  const passwordBuffer =
-    typeof password === "string" ? encoder.encode(password) : password;
-
-  // convert salt to UInt8Array
-  const saltBuffer = typeof salt === "string" ? encoder.encode(salt) : salt;
+  const passwordBuffer = encoder.encode(password);
 
   // import the password as a CryptoKey
   const key = await crypto.subtle.importKey(
@@ -170,7 +177,7 @@ async function saltPassword(
   return await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
-      salt: saltBuffer,
+      salt,
       iterations,
       hash: "SHA-256",
     },
