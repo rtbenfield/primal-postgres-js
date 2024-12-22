@@ -114,19 +114,8 @@ export class BinaryWriter {
   }
 
   writeString(value: string) {
-    // encode the value
-    const encoder = new TextEncoder();
-    const encoded = encoder.encode(value);
-
-    // resize the buffer
-    let position = this.#buffer.byteLength;
-    this.#buffer.resize(this.#buffer.byteLength + encoded.byteLength);
-
-    // write the value
-    const buffer = new Uint8Array(this.#buffer);
-    buffer.set(encoded, position);
-
-    // write the null terminator
-    return this.writeInt8(0);
+    // encode the string into the buffer
+    // then terminate with a null byte
+    return this.encodeInto(value).writeInt8(0);
   }
 }
