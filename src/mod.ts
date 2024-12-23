@@ -1,20 +1,4 @@
 import { BinaryReader } from "./binary-reader";
-import {
-  Bind,
-  BindComplete,
-  CommandComplete,
-  DataRow,
-  Describe,
-  ErrorResponse,
-  Execute,
-  Flush,
-  ParameterDescription,
-  Parse,
-  ParseComplete,
-  ReadyForQuery,
-  RowDescription,
-  Sync,
-} from "./protocol";
 import { extendedQuerySequence, simpleQuerySequence } from "./protocol/query";
 import { startupSequence } from "./protocol/startup";
 import { executeSequence, executeSequenceStream } from "./sequence";

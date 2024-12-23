@@ -1,7 +1,6 @@
 import { BinaryReader } from "./binary-reader";
 import { BinaryWriter } from "./binary-writer";
 
-const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 /**
