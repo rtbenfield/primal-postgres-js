@@ -624,15 +624,12 @@ export const BUILTINS = Object.freeze(
             hexArray.slice(6, 8).join(""),
             hexArray.slice(8, 10).join(""),
             hexArray.slice(10, 16).join(""),
-          ];
-          return segments.join(
-            "-",
-          ) as `{string}-{string}-{string}-{string}-{string}`;
+          ] as const;
+          return `${segments[0]}-${segments[1]}-${segments[2]}-${segments[3]}-${segments[4]}`;
         },
         encode(value) {
           const byteArray = new Uint8Array(16);
           let byteIndex = 0;
-
           for (let i = 0; i < value.length; i++) {
             if (value[i] !== "-") {
               byteArray[byteIndex] = parseInt(value.substring(i, 2), 16);
@@ -640,10 +637,9 @@ export const BUILTINS = Object.freeze(
               i++; // Increment i to skip the next character as well
             }
           }
-
           return byteArray;
         },
-      } satisfies PostgresBinaryType<`{string}-{string}-{string}-{string}-{string}`>,
+      } satisfies PostgresBinaryType<`${string}-${string}-${string}-${string}-${string}`>,
     ],
     // [
     //   3802,
