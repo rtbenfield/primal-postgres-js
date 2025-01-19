@@ -18,7 +18,7 @@ const encoder = new TextEncoder();
 
 export async function* startupSequence(
   connection: ResolvedConnectionOptions,
-): Sequence<void> {
+): Sequence<{ parameters: ReadonlyMap<string, string> }> {
   let reply = yield StartupMessage({
     user: connection.username,
     database: connection.database,
@@ -27,11 +27,39 @@ export async function* startupSequence(
 
   const result = authenticationSwitch(reply);
   if (result instanceof AuthenticationOK) {
-    // authentication is complete
-    reply = yield SKIP;
+    // no authentication was required
   } else if (result instanceof AuthenticationSASL) {
     yield* scramSha256Sequence(connection.username, connection.password ?? "");
   }
+
+  reply = yield SKIP;
+
+  const parameters = new Map<string, string>();
+  while (reply.at(0) !== ReadyForQuery.CODE) {
+    switch (reply.at(0)) {
+      case 0x4b: // 'K'
+        console.log("TODO", BackendKeyData.parse(reply));
+        break;
+      case 0x52:
+        console.log("TODO", AuthenticationOK.parse(reply));
+        break;
+      case 0x53: {
+        // 'S'
+        const parameter = ParameterStatus.parse(reply);
+        parameters.set(parameter.parameter, parameter.value);
+        break;
+      }
+      default:
+        console.log("TODO", String.fromCharCode(reply.at(0)!));
+    }
+
+    reply = yield SKIP;
+  }
+
+  const ready = ReadyForQuery.parse(reply);
+  console.log("READY", ready);
+
+  return { parameters };
 }
 
 /**
@@ -105,36 +133,9 @@ async function* scramSha256Sequence(
   }
 
   reply = yield SKIP;
-
-  while (reply.at(0) !== ReadyForQuery.CODE) {
-    switch (reply.at(0)) {
-      case 0x4b: // 'K'
-        console.log(
-          "TODO",
-          BackendKeyData.parse(reply),
-        );
-        break;
-      case 0x52:
-        console.log(
-          "TODO",
-          AuthenticationOK.parse(reply),
-        );
-        break;
-      case 0x53: // 'S'
-        console.log(
-          "TODO",
-          ParameterStatus.parse(reply),
-        );
-        break;
-      default:
-        console.log("TODO", String.fromCharCode(reply.at(0)!));
-    }
-
-    reply = yield SKIP;
+  if (reply.at(0) !== AuthenticationOK.CODE) {
+    throw new Error("SCRAM-SHA-256 authentication failed");
   }
-
-  const ready = ReadyForQuery.parse(reply);
-  console.log("READY", ready);
 }
 
 async function saltPassword(

@@ -6,7 +6,6 @@ import {
   Describe,
   ErrorResponse,
   Execute,
-  Flush,
   ParameterDescription,
   Parse,
   ParseComplete,
@@ -15,7 +14,7 @@ import {
   RowDescription,
   Sync,
 } from "../protocol";
-import { Sequence } from "../sequence";
+import { NOREPLY, Sequence, SKIP } from "../sequence";
 
 /**
  * @see @link{https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-SIMPLE-QUERY PostgreSQL Docs}
@@ -56,6 +55,7 @@ export async function* simpleQuerySequence(
 export async function* extendedQuerySequence(
   sql: string,
   parameters: ReadonlyArray<null | string | Uint8Array>,
+  formatCode: 0 | 1 = 0,
 ): Sequence<TransformStream<Uint8Array, DataRow>> {
   // TODO: this is a minimal implementation that does not handle much yet
 
@@ -63,13 +63,11 @@ export async function* extendedQuerySequence(
   yield [
     new Parse("", sql, []).buffer,
     new Describe("S", "").buffer,
-    new Bind("", "", parameters, []).buffer,
+    new Bind("", "", parameters, [formatCode]).buffer,
     new Execute("").buffer,
     new Sync().buffer,
-    // ? is a Flush necessary?
-    // Postgres buffers the responses to minimize back-and-forth
-    // the Sync seems to cause a flush, but I'm not sure if that's consistent
-    new Flush().buffer,
+    // Flush is not necessary after Sync
+    NOREPLY,
   ];
 
   const parameterDescriptions = new Array<ParameterDescription>();
@@ -122,18 +120,106 @@ export async function* extendedQuerySequence(
   });
 }
 
-export class QueryResult<T> implements AsyncIterable<T> {
-  constructor(public rows: AsyncIterable<T>) {}
+export async function* prepareSequence(
+  sql: string,
+  name: string,
+): Sequence<{
+  parameterDescriptions: ParameterDescription[];
+  rowDescriptions: RowDescription[];
+}> {
+  let reply = yield [
+    new Parse("", sql, []).buffer,
+    new Describe("S", name).buffer,
+    // Sync will tell Postgres to send a ReadyForQuery when the describe completes
+    new Sync().buffer,
+  ];
 
-  [Symbol.asyncIterator]() {
-    return this.rows[Symbol.asyncIterator]();
-  }
+  const parameterDescriptions = new Array<ParameterDescription>();
+  const rowDescriptions = new Array<RowDescription>();
+  async function* flush(): Sequence<void> {
+    while (true) {
+      switch (reply.at(0)) {
+        case ParseComplete.CODE:
+          // ParseComplete is only informative and has no useful data
+          ParseComplete.parse(reply);
+          break;
+        case ParameterDescription.CODE: {
+          const parameterDescription = ParameterDescription.parse(reply);
+          parameterDescriptions.push(parameterDescription);
+          break;
+        }
+        case RowDescription.CODE: {
+          const rowDescription = RowDescription.parse(reply);
+          rowDescriptions.push(rowDescription);
+          break;
+        }
+        case ErrorResponse.CODE: {
+          const errorResponse = ErrorResponse.parse(reply);
+          console.error(errorResponse);
+          throw errorResponse;
+        }
+        case ReadyForQuery.CODE:
+        case CommandComplete.CODE:
+          return;
+        default: {
+          const type = String.fromCharCode(reply.at(0)!);
+          throw new Error(`Unexpected packet type ${type}`);
+        }
+      }
 
-  async toArray() {
-    const rows = new Array<T>();
-    for await (const row of this.rows) {
-      rows.push(row);
+      reply = yield SKIP;
     }
-    return rows;
   }
+
+  yield* flush();
+
+  return { parameterDescriptions, rowDescriptions };
+}
+
+export async function* executePreparedStatementSequence(
+  parameters: ReadonlyArray<null | string | Uint8Array>,
+  formatCode: 0 | 1 = 0,
+): Sequence<TransformStream<Uint8Array, DataRow>> {
+  yield [
+    new Bind("", "", parameters, [formatCode]).buffer,
+    new Execute("").buffer,
+    new Sync().buffer,
+    // Flush is not necessary after Sync
+    NOREPLY,
+  ];
+
+  return new TransformStream<Uint8Array, DataRow>({
+    transform(message, controller) {
+      switch (message.at(0)) {
+        case BindComplete.CODE: {
+          BindComplete.parse(message);
+          return;
+        }
+        case ErrorResponse.CODE: {
+          const errorResponse = ErrorResponse.parse(message);
+          console.error(errorResponse);
+          throw errorResponse;
+        }
+        case DataRow.CODE: {
+          const dataRow = DataRow.parse(message);
+          controller.enqueue(dataRow);
+          return;
+        }
+        case CommandComplete.CODE: {
+          CommandComplete.parse(message);
+          return;
+        }
+        case ReadyForQuery.CODE: {
+          ReadyForQuery.parse(message);
+          controller.terminate();
+          return;
+        }
+        default: {
+          throw new Error(
+            `Unexpected packet type ${String.fromCharCode(message.at(0)!)}`,
+          );
+        }
+      }
+    },
+  });
 }

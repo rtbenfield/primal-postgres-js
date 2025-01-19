@@ -44,6 +44,12 @@ export class BinaryReader {
     return value;
   }
 
+  readFloat64() {
+    const value = this.#view.getFloat64(this.#position, false);
+    this.#position += 8;
+    return value;
+  }
+
   readInt16() {
     const value = this.#view.getUint16(this.#position, false);
     this.#position += 2;
@@ -56,6 +62,30 @@ export class BinaryReader {
     return value;
   }
 
+  /**
+   * Reads a 64-bit integer from the buffer. This also matches to the INT8
+   * data type in the Postgres protocol.
+   */
+  readInt64() {
+    const value = this.#view.getBigUint64(this.#position, false);
+    this.#position += 8;
+    return value;
+  }
+
+  /** Reads an OID from the buffer and returns the numeric value. */
+  readOid() {
+    return this.readInt32();
+  }
+
+  readFixedLengthString(length: number) {
+    const start = this.#position;
+    this.#position += length;
+    return decoder.decode(this.#buffer.subarray(start, start + length));
+  }
+
+  /**
+   * Reads a null-terminated string from the buffer.
+   */
   readString() {
     const start = this.#position;
 

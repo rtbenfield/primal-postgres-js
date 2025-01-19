@@ -32,6 +32,9 @@ export class ErrorResponse {
       const fieldType = reader.readByte();
       const value = reader.readString();
       switch (fieldType) {
+        case 0x56: // 'V' - level
+          errorResponse.level = value;
+          break;
         case 0x53: // 'S' - Severity
           errorResponse.severity = value;
           break;
@@ -81,7 +84,9 @@ export class ErrorResponse {
           errorResponse.routine = value;
           break;
         default:
-          console.warn(`Unknown field type: ${fieldType}`);
+          console.warn(
+            `Unknown field type '${String.fromCharCode(fieldType)}'`,
+          );
       }
     }
 
@@ -94,6 +99,7 @@ export class ErrorResponse {
 
 interface PostgresErrorResponse {
   severity?: string;
+  level?: string;
   code?: string; // SQLSTATE code
   message?: string;
   detail?: string;
@@ -115,14 +121,19 @@ interface PostgresErrorResponse {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-AUTHENTICATIONOK PostgreSQL Docs}
  */
 export class AuthenticationOK {
+  static get CODE() {
+    return 0x52; // 'R'
+  }
+
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
-      code === 0x52,
+      code === AuthenticationOK.CODE,
       `Expected 'R', got ${String.fromCharCode(code)}`,
     );
     const length = reader.readInt32();
+    console.assert(length === 8, `Expected length 8, got ${length}`);
     const tag = reader.readInt32();
     console.assert(tag === 0, `Expected 0, got ${tag}`);
     return new AuthenticationOK();
@@ -393,7 +404,7 @@ export class DataRow {
     return 0x44 as const;
   }
 
-  constructor(public columns: unknown[]) {}
+  constructor(public columns: ReadonlyArray<Uint8Array | null>) {}
 
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
@@ -404,18 +415,27 @@ export class DataRow {
     );
     const length = reader.readInt32();
     const columnCount = reader.readInt16();
-    const columns = new Array<unknown>(columnCount);
+    const columns = new Array<Uint8Array | null>(columnCount);
     for (let i = 0; i < columnCount; i++) {
       const columnLength = reader.readInt32();
       if (columnLength === -1) {
         columns[i] = null;
       } else {
-        const buffer = new Uint8Array(reader.readBuffer(columnLength));
-        columns[i] = decoder.decode(buffer);
+        columns[i] = reader.readBuffer(columnLength);
       }
     }
     return new DataRow(columns);
   }
+}
+
+export interface FieldDescription {
+  fieldName: string;
+  relid: number;
+  relseq: number;
+  oid: number;
+  typelen: number;
+  typemod: number;
+  formatCode: number;
 }
 
 /**
@@ -429,7 +449,7 @@ export class RowDescription {
     return 0x54 as const;
   }
 
-  constructor(public columns: unknown[]) {}
+  constructor(public columns: Array<FieldDescription>) {}
 
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
@@ -440,7 +460,7 @@ export class RowDescription {
     );
     const length = reader.readInt32();
     const fieldCount = reader.readInt16();
-    const fields = new Array<unknown>(fieldCount);
+    const fields = new Array<FieldDescription>(fieldCount);
     for (let i = 0; i < fieldCount; i++) {
       const fieldName = reader.readString();
       const relid = reader.readInt32();
@@ -619,8 +639,10 @@ export class Bind {
     /**
      * The result-column format codes. Each must presently be zero (text) or one (binary).
      *
-     * This can be zero to indicate that there are no result columns or that the result columns should all use the default format (text); or one, in which case the specified format code is applied to all result columns (if any); or it can equal the actual number of result columns of the query.
-     * */
+     * This can be zero to indicate that there are no result columns or that the result columns should all use the
+     * default format (text); or one, in which case the specified format code is applied to all result columns (if any);
+     * or it can equal the actual number of result columns of the query.
+     */
     public resultFormatCodes: ReadonlyArray<0 | 1>,
   ) {}
 
@@ -660,7 +682,7 @@ export class Bind {
         writer.writeBuffer(value);
       } else {
         throw new TypeError(
-          "Expected string or Uint8Array for parameter value",
+          "Expected string Uint8Array, or null for parameter value",
         );
       }
     }
@@ -792,13 +814,32 @@ export class ParameterDescription {
  */
 export class Flush {
   static get CODE() {
-    // 'F'
-    return 0x46 as const;
+    // 'H'
+    return 0x48 as const;
   }
 
   get buffer() {
     const writer = new BinaryWriter(5);
     writer.writeByte(Flush.CODE);
+    writer.writeInt32(4);
+    return writer.buffer;
+  }
+}
+
+/**
+ * Terminate (F)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-TERMINATE PostgreSQL Docs}
+ */
+export class Terminate {
+  static get CODE() {
+    // 'X'
+    return 0x58 as const;
+  }
+
+  get buffer() {
+    const writer = new BinaryWriter(5);
+    writer.writeByte(Terminate.CODE);
     writer.writeInt32(4);
     return writer.buffer;
   }

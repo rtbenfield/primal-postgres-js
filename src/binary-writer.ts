@@ -15,6 +15,9 @@ export class BinaryWriter {
     return this.#buffer.byteLength;
   }
 
+  /**
+   * Encodes the specified string into the buffer without a null-terminator.
+   */
   encodeInto(value: string) {
     const position = this.#buffer.byteLength;
     this.#buffer.resize(this.#buffer.byteLength + value.length);
@@ -52,7 +55,7 @@ export class BinaryWriter {
     const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
     const position = this.#buffer.byteLength;
     this.#buffer.resize(this.#buffer.byteLength + bytes.byteLength);
-    const buffer = new Uint8Array(this.buffer);
+    const buffer = new Uint8Array(this.#buffer);
     buffer.set(bytes, position);
     return this;
   }
@@ -72,6 +75,19 @@ export class BinaryWriter {
     } else {
       throw new TypeError(`Expected number or string, got ${typeof value}`);
     }
+  }
+
+  writeFloat64(value: number) {
+    const position = this.#buffer.byteLength;
+
+    // resize the buffer
+    this.#buffer.resize(this.#buffer.byteLength + 8);
+
+    // write the value
+    const view = new DataView(this.#buffer);
+    view.setFloat64(position, value, false);
+
+    return this;
   }
 
   writeInt8(value: number) {
@@ -113,6 +129,26 @@ export class BinaryWriter {
     return this;
   }
 
+  writeInt64(value: bigint) {
+    const position = this.#buffer.byteLength;
+
+    // resize the buffer
+    this.#buffer.resize(this.#buffer.byteLength + 8);
+
+    // write the value
+    const view = new DataView(this.#buffer);
+    view.setBigUint64(position, value, false);
+
+    return this;
+  }
+
+  writeOid(value: number) {
+    return this.writeInt32(value);
+  }
+
+  /**
+   * Writes the specified string into the buffer along with a null-terminator.
+   */
   writeString(value: string) {
     // encode the string into the buffer
     // then terminate with a null byte

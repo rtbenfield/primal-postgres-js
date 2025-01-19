@@ -12,6 +12,8 @@ export async function executeSequence<T>(
       // get the first packet
       let outbox = await sequence.next();
       while (!outbox.done) {
+        let noreply = false;
+
         if (outbox.value instanceof Uint8Array) {
           // send the packet to the database
           const firstByte = String.fromCharCode(outbox.value.at(0)!);
@@ -23,25 +25,40 @@ export async function executeSequence<T>(
 
           // debug only
           for (const message of outbox.value) {
-            const firstByte = String.fromCharCode(message.at(0)!);
-            console.debug(`--> [${firstByte}]`, Buffer.from(message));
+            if (message === NOREPLY) {
+              noreply = true;
+            } else {
+              const firstByte = String.fromCharCode(message.at(0)!);
+              console.debug(`--> [${firstByte}]`, Buffer.from(message));
+            }
           }
 
           // we can write all of the messages in one shot for efficiency
           await writer.write(
-            new Uint8Array(combineArrayBuffers(...outbox.value)),
+            new Uint8Array(
+              combineArrayBuffers(...outbox.value.filter((x) => x !== NOREPLY)),
+            ),
           );
+
+          // if any NOREPLY was included in the array, we skip the next inbound message
+          noreply = outbox.value.some((x) => x === NOREPLY);
         }
+
         // receive the next message
-        // console.debug("...waiting for reply...");
-        const inbox = await reader.read();
-        if (inbox.done) {
-          throw new Error("Connection closed unexpectedly");
+        if (!noreply) {
+          // console.debug("...waiting for reply...");
+          const inbox = await reader.read();
+          if (inbox.done) {
+            throw new Error("Connection closed unexpectedly");
+          }
+          const firstByte = String.fromCharCode(inbox.value.at(0)!);
+          console.debug(`<-- [${firstByte}]`, Buffer.from(inbox.value));
+          // pass the repy message back into the sequence
+          outbox = await sequence.next(inbox.value);
+        } else {
+          console.debug("--- noreply ---");
+          outbox = await sequence.next();
         }
-        const firstByte = String.fromCharCode(inbox.value.at(0)!);
-        console.debug(`<-- [${firstByte}]`, Buffer.from(inbox.value));
-        // pass the repy message back into the sequence
-        outbox = await sequence.next(inbox.value);
       }
       return outbox.value;
     } finally {
@@ -89,9 +106,21 @@ export async function executeSequenceStream<T>(
   }
 }
 
+/**
+ * Symbol that is yielded by a sequence to skip sending a packet and wait
+ * for the next inbound packet instead.
+ */
 export const SKIP = Symbol("skip");
+
+/**
+ * Symbol that is yielded by a sequence to skip receiving a packet and proceed
+ * with the sequence instead. This is with `executeSequenceStream` to push the
+ * next packet into the `TransformStream` returned by the sequence.
+ */
+export const NOREPLY = Symbol("noreply");
+
 export type Sequence<T> = AsyncGenerator<
-  Uint8Array | ReadonlyArray<Uint8Array> | typeof SKIP,
+  Uint8Array | ReadonlyArray<Uint8Array | typeof NOREPLY> | typeof SKIP,
   T,
   Uint8Array
 >;
