@@ -34,7 +34,7 @@ export type TypeParser =
       getType<T>(oid: number): PostgresBinaryType<T>;
     }
   | {
-      readonly type: "string";
+      readonly type: "text";
       getType<T>(oid: number): PostgresTextType<T>;
     };
 
@@ -196,7 +196,7 @@ export class PreparedStatement<
     });
 
     this.#resultDecoding = rowDescription.map((row) => {
-      return row.columns.map((col, i) => {
+      return row.columns.map((col) => {
         const type = this.#types.getType(col.oid);
         if (!type) {
           throw new Error(`no type decoder for OID ${col.oid}`);
@@ -234,7 +234,7 @@ export class PreparedStatement<
             );
           } else if (raw === null) {
             return [name, null] as const;
-          } else if (this.#types.type === "string") {
+          } else if (this.#types.type === "text") {
             const value = new TextDecoder().decode(raw);
             return [name, decoder(value as any, this.#types)] as const;
           } else {
