@@ -153,6 +153,18 @@ test("do arrays of tuple work", async () => {
   ]);
 });
 
+test("large result set", async () => {
+  const client = createClient();
+  await using connection = await client.connect();
+
+  const statement = await connection.prepare(
+    `SELECT gen_random_uuid() FROM generate_series(1, 100000)`,
+  );
+  const results = await statement.execute([]);
+  const rows = await results.toArray();
+  expect(rows.length).toBe(100_000);
+});
+
 function createClient() {
   return new Client({
     connection: "postgresql://user:password@localhost:5432/driver",

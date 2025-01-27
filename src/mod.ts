@@ -1,4 +1,3 @@
-import { BinaryReader } from "./binary-reader";
 import {
   DataRow,
   ParameterDescription,
@@ -13,6 +12,7 @@ import {
 } from "./protocol/query";
 import { startupSequence } from "./protocol/startup";
 import { executeSequence, executeSequenceStream } from "./sequence";
+import { PostgresAlignmentStream } from "./streams";
 
 export interface PostgresBinaryType<T> {
   get name(): string;
@@ -78,7 +78,7 @@ export class Client {
     );
 
     const patchedSocket: Socket = {
-      readable: socket.readable.pipeThrough(new PostgresMessageSplitStream()),
+      readable: socket.readable.pipeThrough(new PostgresAlignmentStream()),
       writable: socket.writable,
     };
 
@@ -319,31 +319,4 @@ export interface ResolvedConnectionOptions {
   replication: true | false | "database";
   username: string;
   password: string | null;
-}
-
-/**
- * Postgres will sometimes batch multiple messages into a single packet.
- * To simplify downstream processing, this transformer splits them before
- * enqueuing them for the next consumer.
- */
-class PostgresMessageSplitStream extends TransformStream<
-  Uint8Array,
-  Uint8Array
-> {
-  constructor() {
-    super({
-      transform(chunk, controller) {
-        let buffer = chunk;
-
-        while (buffer.byteLength > 0) {
-          const reader = new BinaryReader(buffer);
-          reader.readByte();
-          const packetLength = reader.readInt32() + 1;
-          const packet = buffer.subarray(0, packetLength);
-          controller.enqueue(packet);
-          buffer = buffer.subarray(packetLength);
-        }
-      },
-    });
-  }
 }
