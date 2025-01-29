@@ -1,5 +1,8 @@
 const encoder = new TextEncoder();
 
+/**
+ * A utility for writing binary data into a Uint8Array buffer.
+ */
 export class BinaryWriter {
   #buffer: ArrayBuffer;
 

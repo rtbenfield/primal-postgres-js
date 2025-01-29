@@ -1,8 +1,10 @@
+import { Logger } from "./logger";
 import type { Socket } from "./mod";
 
 export async function executeSequence<T>(
   socket: Socket,
   sequence: Sequence<T>,
+  logger: Logger,
 ) {
   const { readable, writable } = socket;
   const writer = writable.getWriter();
@@ -17,7 +19,9 @@ export async function executeSequence<T>(
         if (outbox.value instanceof Uint8Array) {
           // send the packet to the database
           const firstByte = String.fromCharCode(outbox.value.at(0)!);
-          console.debug(`--> [${firstByte}]`, Buffer.from(outbox.value));
+          logger.debug(`--> [${firstByte}]`, {
+            buffer: Buffer.from(outbox.value),
+          });
           await writer.write(outbox.value);
         } else if (outbox.value !== SKIP) {
           // outbox.value must be ReadonlyArray<Uint8Array>
@@ -29,7 +33,9 @@ export async function executeSequence<T>(
               noreply = true;
             } else {
               const firstByte = String.fromCharCode(message.at(0)!);
-              console.debug(`--> [${firstByte}]`, Buffer.from(message));
+              logger.debug(`--> [${firstByte}]`, {
+                buffer: Buffer.from(message),
+              });
             }
           }
 
@@ -46,17 +52,19 @@ export async function executeSequence<T>(
 
         // receive the next message
         if (!noreply) {
-          // console.debug("...waiting for reply...");
+          // logger.debug("...waiting for reply...");
           const inbox = await reader.read();
           if (inbox.done) {
             throw new Error("Connection closed unexpectedly");
           }
           const firstByte = String.fromCharCode(inbox.value.at(0)!);
-          console.debug(`<-- [${firstByte}]`, Buffer.from(inbox.value));
+          logger.debug(`<-- [${firstByte}]`, {
+            buffer: Buffer.from(inbox.value),
+          });
           // pass the repy message back into the sequence
           outbox = await sequence.next(inbox.value);
         } else {
-          console.debug("--- noreply ---");
+          logger.debug("--- noreply ---");
           outbox = await sequence.next();
         }
       }
@@ -72,8 +80,9 @@ export async function executeSequence<T>(
 export async function executeSequenceStream<T>(
   socket: Socket,
   sequence: Sequence<TransformStream<Uint8Array, T>>,
+  logger: Logger,
 ): Promise<ReadableStream<T>> {
-  const transformer = await executeSequence(socket, sequence);
+  const transformer = await executeSequence(socket, sequence, logger);
 
   const { readable, writable } = socket;
   const writer = writable.getWriter();
@@ -82,7 +91,7 @@ export async function executeSequenceStream<T>(
     try {
       return new ReadableStream<Uint8Array>({
         cancel() {
-          console.debug("------- sequence complete");
+          logger.debug("------- sequence complete");
           writer.releaseLock();
           reader.releaseLock();
         },
@@ -92,7 +101,9 @@ export async function executeSequenceStream<T>(
             throw new Error(`connection was closed unexpectedly`);
           }
           const firstByte = String.fromCharCode(nextResult.value.at(0)!);
-          console.debug(`<-- [${firstByte}]`, Buffer.from(nextResult.value));
+          logger.debug(`<-- [${firstByte}]`, {
+            buffer: Buffer.from(nextResult.value),
+          });
           controller.enqueue(nextResult.value);
         },
       }).pipeThrough(transformer);

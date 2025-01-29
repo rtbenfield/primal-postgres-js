@@ -1,6 +1,6 @@
 import { BinaryReader } from "../binary-reader";
 import { BinaryWriter } from "../binary-writer";
-import { PostgresBinaryType } from "../mod";
+import { BinaryTypeParser, PostgresBinaryType } from "./mod";
 
 const decoder = new TextDecoder();
 
@@ -667,34 +667,6 @@ export const BUILTINS = Object.freeze(
     // ],
   ]),
 );
-
-export class BinaryTypeParser {
-  readonly #types = new Map<number, PostgresBinaryType<unknown>>();
-
-  get type() {
-    return "binary" as const;
-  }
-
-  getType<T>(oid: number) {
-    const type = this.#types.get(oid);
-    if (!type) {
-      throw new Error(`Unknown OID ${oid}`);
-    }
-    return type as PostgresBinaryType<T>;
-  }
-
-  register(tuples: Iterable<[number, PostgresBinaryType<unknown>]>) {
-    for (const [oid, type] of tuples) {
-      this.#types.set(oid, type);
-    }
-    return this;
-  }
-
-  setType(oid: number, type: PostgresBinaryType<unknown>) {
-    this.#types.set(oid, type);
-    return this;
-  }
-}
 
 export const defaultBinaryTypeParser = new BinaryTypeParser().register(
   BUILTINS.entries(),

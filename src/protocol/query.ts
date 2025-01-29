@@ -36,7 +36,6 @@ export async function* simpleQuerySequence(
         }
         case CommandComplete.CODE: {
           CommandComplete.parse(chunk);
-          console.info("commandComplete");
           break;
         }
         case ReadyForQuery.CODE: {

@@ -3,6 +3,9 @@ import { Readable, Writable } from "node:stream";
 import { ReadableStream } from "node:stream/web";
 import type { Socket } from "./mod";
 
+/**
+ * An adapter for a Node.js `net.Socket` to the `Socket` interface.
+ */
 export class NodeSocket implements Socket {
   readonly #connected: Promise<void>;
   readonly #socket;

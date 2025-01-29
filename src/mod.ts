@@ -1,3 +1,4 @@
+import { ConsoleLogger, Logger } from "./logger";
 import {
   DataRow,
   ParameterDescription,
@@ -13,30 +14,7 @@ import {
 import { startupSequence } from "./protocol/startup";
 import { executeSequence, executeSequenceStream } from "./sequence";
 import { PostgresAlignmentStream } from "./streams";
-
-export interface PostgresBinaryType<T> {
-  get name(): string;
-
-  decode(buffer: Uint8Array, types: TypeParser): T;
-  encode(value: T, types: TypeParser): Uint8Array;
-}
-
-export interface PostgresTextType<T> {
-  get name(): string;
-
-  decode(buffer: Uint8Array, types: TypeParser): T;
-  encode(value: T, types: TypeParser): Uint8Array;
-}
-
-export type TypeParser =
-  | {
-      readonly type: "binary";
-      getType<T>(oid: number): PostgresBinaryType<T>;
-    }
-  | {
-      readonly type: "text";
-      getType<T>(oid: number): PostgresTextType<T>;
-    };
+import { TypeParser } from "./types/mod";
 
 export interface ConnectionOptions {
   database: string;
@@ -58,17 +36,20 @@ export type SocketFactory = (hostname: string, port: number) => Promise<Socket>;
 
 export interface ClientOptions {
   connection: string | URL | ConnectionOptions;
+  logger?: Logger;
   socket: SocketFactory;
   types: TypeParser;
 }
 
 export class Client {
   readonly #connection;
+  readonly #logger;
   readonly #options;
 
   constructor(options: ClientOptions) {
     this.#options = options;
     this.#connection = resolveConnection(options.connection);
+    this.#logger = options.logger ?? new ConsoleLogger("warn");
   }
 
   async connect(): Promise<Connection> {
@@ -85,18 +66,21 @@ export class Client {
     const { parameters } = await executeSequence(
       patchedSocket,
       startupSequence(this.#connection),
+      this.#logger,
     );
-    console.debug("connetion parameters", parameters);
+    this.#logger.debug("connetion parameters", { parameters });
 
-    return new Connection(patchedSocket, this.#options.types);
+    return new Connection(patchedSocket, this.#options.types, this.#logger);
   }
 }
 
 export class Connection {
+  readonly #logger;
   readonly #socket: Socket;
   readonly #types: TypeParser;
 
-  constructor(socket: Socket, types: TypeParser) {
+  constructor(socket: Socket, types: TypeParser, logger: Logger) {
+    this.#logger = logger;
     this.#socket = socket;
     this.#types = types;
   }
@@ -105,7 +89,7 @@ export class Connection {
     // TODO: the writer might be locked in another sequence
     //? how should the connection handle the case that it is closed mid-sequence?
     await this.close().catch((e) =>
-      console.error("error closing connection", e),
+      this.#logger.error("error closing connection", e),
     );
   }
 
@@ -113,7 +97,7 @@ export class Connection {
     const writer = this.#socket.writable.getWriter();
     try {
       const buffer = new Terminate().buffer;
-      console.debug("--> [X]", buffer);
+      this.#logger.debug("--> [X]", { buffer });
       await writer.write(buffer);
     } finally {
       writer.releaseLock();
@@ -121,7 +105,11 @@ export class Connection {
   }
 
   async query(sql: string) {
-    return await executeSequenceStream(this.#socket, simpleQuerySequence(sql));
+    return await executeSequenceStream(
+      this.#socket,
+      simpleQuerySequence(sql),
+      this.#logger,
+    );
   }
 
   /** @deprecated */
@@ -136,6 +124,7 @@ export class Connection {
         parameters,
         this.#types.type === "binary" ? 1 : 0,
       ),
+      this.#logger,
     );
   }
 
@@ -143,6 +132,7 @@ export class Connection {
     const { parameterDescriptions, rowDescriptions } = await executeSequence(
       this.#socket,
       prepareSequence(sql, ""),
+      this.#logger,
     );
     const parameterDescription = parameterDescriptions.at(0);
     if (!parameterDescription) {
@@ -151,6 +141,7 @@ export class Connection {
     return new PreparedStatement(
       this.#socket,
       this.#types,
+      this.#logger,
       parameterDescription,
       rowDescriptions,
     );
@@ -162,6 +153,7 @@ export class PreparedStatement<
   Result = unknown,
   Types extends TypeParser = TypeParser,
 > {
+  readonly #logger: Logger;
   readonly #socket: Socket;
   readonly #types: TypeParser;
 
@@ -181,9 +173,11 @@ export class PreparedStatement<
   constructor(
     socket: Socket,
     types: Types,
+    logger: Logger,
     parameterDescription: ParameterDescription,
     rowDescription: ReadonlyArray<RowDescription>,
   ) {
+    this.#logger = logger;
     this.#socket = socket;
     this.#types = types;
 
@@ -221,6 +215,7 @@ export class PreparedStatement<
     const stream = await executeSequenceStream(
       this.#socket,
       executePreparedStatementSequence(encodedParameters, formatCode),
+      this.#logger,
     );
     const transform = new TransformStream<DataRow, Result>({
       transform: (row, controller) => {
