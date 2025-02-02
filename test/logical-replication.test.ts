@@ -1,6 +1,6 @@
 import { beforeAll, expect, test } from "vitest";
 import { PgoutputDecoderStream } from "../src/logical-replication";
-import { Client, Connection, PreparedStatement, QueryResult } from "../src/mod";
+import { Client, PreparedStatement, QueryResult } from "../src/mod";
 import { NodeSocket } from "../src/socket.node";
 import { defaultBinaryTypeParser } from "../src/types/built-ins";
 
@@ -43,42 +43,60 @@ beforeAll(async () => {
     .catch(() => {});
 });
 
-test("scratch logical replication testing", { timeout: 2_000 }, async () => {
+test("scratch logical replication testing", async () => {
   const id = crypto.randomUUID().replaceAll("-", "");
 
   await using _publication = await createPublication(id);
   await using _slot = await createReplicationSlot(id);
 
-  const randomData = await makeRandomDataFeed(true);
-
-  await using connection = await replication.connect();
-  expect(connection).toBeInstanceOf(Connection);
-
-  const { readable } = await connection.send(
-    `START_REPLICATION SLOT "${id}" LOGICAL 0/0 (proto_version '1', publication_names '${id}', binary)`,
-  );
-
-  const count = 5;
-  await randomData.createData(count);
+  const count = 100;
+  const randomData = await makeRandomDataFeed(false);
+  const data = await randomData.createData(count);
   await randomData.updateData();
   await randomData.deleteData();
 
-  const stream = readable.pipeThrough(
-    new PgoutputDecoderStream(defaultBinaryTypeParser),
+  await using connection = await replication.connect();
+  const { readable } = await connection.send(
+    `START_REPLICATION SLOT "${id}" LOGICAL 0/0
+      (proto_version '1', publication_names '${id}', binary)`,
   );
+  const reader = readable
+    .pipeThrough(new PgoutputDecoderStream(defaultBinaryTypeParser))
+    .getReader();
 
-  let inserts = 0;
-  let updates = 0;
-  let deletes = 0;
-  for await (const value of stream) {
-    console.log(value);
-    // @ts-expect-error
-    if (value.type === "insert") inserts++;
-    // @ts-expect-error
-    if (value.type === "update") updates++;
-    // @ts-expect-error
-    if (value.type === "delete") deletes++;
-    if (inserts + updates + deletes === count * 3) break;
+  for (const row of data) {
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: expect.objectContaining({
+        type: "insert",
+        inserted: row,
+      }),
+    });
+  }
+  for (const row of data) {
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: expect.objectContaining({
+        type: "update",
+        before: null,
+        after: {
+          id: row.id,
+          text: expect.any(String),
+        },
+      }),
+    });
+  }
+  for (const row of data) {
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: expect.objectContaining({
+        type: "delete",
+        deleted: {
+          id: row.id,
+          text: null,
+        },
+      }),
+    });
   }
 });
 
@@ -160,9 +178,12 @@ async function makeRandomDataFeed(withReplicaIdentityFull = false) {
     async createData(count = 1) {
       await using connection = await client.connect();
       const prepared = await connection.prepare(
-        `INSERT INTO "${name}" (id, text) SELECT gen_random_uuid(), gen_random_uuid()::TEXT FROM generate_series(1, $1)`,
+        `INSERT INTO "${name}" (id, text)
+          SELECT gen_random_uuid(), gen_random_uuid()::TEXT FROM generate_series(1, $1)
+          RETURNING id, text`,
       );
-      await using _result = await prepared.execute([count]);
+      const result = await prepared.execute([count]);
+      return result.toArray() as Promise<Array<{ id: string; text: string }>>;
     },
     async deleteData() {
       await using connection = await client.connect();
