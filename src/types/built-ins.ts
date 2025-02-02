@@ -142,11 +142,19 @@ export const BUILTINS = Object.freeze(
       {
         name: "name",
         decode(buffer) {
-          const reader = new BinaryReader(buffer);
-          reader.readInt32(); // length
-          return reader.readString();
+          if (buffer.byteLength >= 128) {
+            throw new RangeError(
+              `Identifier must be less than 64 characters, got ${buffer.byteLength} bytes`,
+            );
+          }
+          return decoder.decode(buffer);
         },
         encode(value) {
+          if (value.length > 64) {
+            throw new RangeError(
+              `Identifier must be less than 64 characters, got ${value.length}`,
+            );
+          }
           return encoder.encode(value);
         },
       } satisfies PostgresBinaryType<string>,
@@ -212,6 +220,21 @@ export const BUILTINS = Object.freeze(
           return encoder.encode(stringified);
         },
       } satisfies PostgresBinaryType<string>,
+    ],
+    [
+      26,
+      {
+        name: "bool",
+        decode(buffer) {
+          console.log("!!!!!!!!!!!!", Buffer.from(buffer));
+          throw new Error("Method not implemented.");
+          // return new BinaryReader(buffer).readBool();
+        },
+        encode(value) {
+          throw new Error("Method not implemented.");
+          // return new BinaryWriter().writeBool(value).buffer;
+        },
+      } satisfies PostgresBinaryType<boolean>,
     ],
     [
       27,
@@ -580,6 +603,19 @@ export const BUILTINS = Object.freeze(
           throw new Error("Not implemented");
         },
       } satisfies PostgresBinaryType<unknown>,
+    ],
+    [
+      2278,
+      {
+        name: "pg_lsn",
+        decode(buffer) {
+          console.log("!!!!!!!!!!!!!1", buffer);
+          throw new Error("Not implemented");
+        },
+        encode(value) {
+          throw new Error("Not implemented");
+        },
+      } satisfies PostgresBinaryType<string>,
     ],
     [
       2287,

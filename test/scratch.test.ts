@@ -13,15 +13,22 @@ expect.addEqualityTesters([
   },
 ]);
 
-test("simple connection", async () => {
-  const client = createClient();
+const client = new Client({
+  connection: "postgresql://user:password@localhost:5432/driver",
+  socket: async (hostname, port) => {
+    const socket = new NodeSocket(hostname, port);
+    await socket.connected;
+    return socket;
+  },
+  types: defaultBinaryTypeParser,
+});
 
+test("simple connection", async () => {
   await using connection = await client.connect();
   expect(connection).toBeInstanceOf(Connection);
 });
 
 test("simple query", async () => {
-  const client = createClient();
   await using connection = await client.connect();
 
   const results = await connection.query("SELECT 1 UNION ALL SELECT 2");
@@ -41,7 +48,6 @@ test("simple query", async () => {
 });
 
 test("prepared statement", async () => {
-  const client = createClient();
   await using connection = await client.connect();
 
   const statement = await connection.prepare(
@@ -54,7 +60,6 @@ test("prepared statement", async () => {
 });
 
 test("prepared statement cancel", async () => {
-  const client = createClient();
   await using connection = await client.connect();
 
   const statement = await connection.prepare(
@@ -68,7 +73,6 @@ test("prepared statement cancel", async () => {
 });
 
 test("do tuples work", async () => {
-  const client = createClient();
   await using connection = await client.connect();
 
   const statement = await connection.prepare(
@@ -101,7 +105,6 @@ test("do tuples work", async () => {
 });
 
 test("do arrays of tuple work", async () => {
-  const client = createClient();
   await using connection = await client.connect();
 
   const statement = await connection.prepare(
@@ -153,10 +156,7 @@ test("do arrays of tuple work", async () => {
   ]);
 });
 
-test("large result set", async () => {
-  const count = 1000;
-
-  const client = createClient();
+test.each([100, 1_000, 10_000])("large result set - %i", async (count) => {
   await using connection = await client.connect();
 
   const statement = await connection.prepare(
@@ -166,15 +166,3 @@ test("large result set", async () => {
   const rows = await results.toArray();
   expect(rows.length).toBe(count);
 });
-
-function createClient() {
-  return new Client({
-    connection: "postgresql://user:password@localhost:5432/driver",
-    socket: async (hostname, port) => {
-      const socket = new NodeSocket(hostname, port);
-      await socket.connected;
-      return socket;
-    },
-    types: defaultBinaryTypeParser,
-  });
-}

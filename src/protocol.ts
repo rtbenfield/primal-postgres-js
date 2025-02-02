@@ -224,6 +224,10 @@ export class AuthenticationSASLFinal {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BACKENDKEYDATA PostgreSQL Docs}
  */
 export class BackendKeyData {
+  static get CODE() {
+    return 0x4b; // 'B'
+  }
+
   constructor(
     public pid: number,
     public secretKey: number,
@@ -233,7 +237,7 @@ export class BackendKeyData {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
-      code === 0x4b,
+      code === BackendKeyData.CODE,
       `Expected 'B', got ${String.fromCharCode(code)}`,
     );
     const length = reader.readInt32();
@@ -248,6 +252,10 @@ export class BackendKeyData {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-PARAMETERSTATUS PostgreSQL Docs}
  */
 export class ParameterStatus {
+  static get CODE() {
+    return 0x53; // 'S'
+  }
+
   constructor(
     public parameter: string,
     public value: string,
@@ -257,7 +265,7 @@ export class ParameterStatus {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
     console.assert(
-      code === 0x53,
+      code === ParameterStatus.CODE,
       `Expected 'S', got ${String.fromCharCode(code)}`,
     );
     const length = reader.readInt32();
@@ -485,6 +493,7 @@ export class RowDescription {
 
 export class ReadyForQuery {
   static get CODE() {
+    // 'Z'
     return 0x5a as const;
   }
 
@@ -889,5 +898,95 @@ export function authenticationSwitch(buffer: Uint8Array) {
       return "AuthenticationSASLFinal";
     default:
       return ErrorResponse.parse(buffer);
+  }
+}
+
+/**
+ * NoData (B)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-NODATA PostgreSQL Docs}
+ */
+export class NoData {
+  static get CODE() {
+    // 'n'
+    return 0x6e as const;
+  }
+
+  static parse(buffer: Uint8Array) {
+    const reader = new BinaryReader(buffer);
+    const length = reader.readInt32(); // length
+    console.assert(length === 4, `Expected length 4, got ${length}`);
+  }
+}
+
+/**
+ * CopyBothResponse (B)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COPYBOTHRESPONSE PostgreSQL Docs}
+ */
+export class CopyBothResponse {
+  static get CODE() {
+    return 0x57 as const; // 'W'
+  }
+
+  constructor(
+    public formatCode: number,
+    public columnFormats: number[],
+  ) {}
+
+  static parse(buffer: Uint8Array) {
+    const reader = new BinaryReader(buffer);
+    const code = reader.readByte();
+    console.assert(
+      code === CopyBothResponse.CODE,
+      `Expected ${String.fromCharCode(CopyBothResponse.CODE)}, got ${String.fromCharCode(code)}`,
+    );
+    const length = reader.readInt32(); // length
+    console.assert(length === 7, `Expected length 4, got ${length}`);
+    const formatCode = reader.readByte();
+    const numCols = reader.readInt16();
+    const columnFormats = new Array<number>(numCols);
+    for (let i = 0; i < numCols; i++) {
+      columnFormats[i] = reader.readInt16();
+    }
+    return new CopyBothResponse(formatCode, columnFormats);
+  }
+}
+
+/**
+ * CopyData (F & B)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COPYDATA PostgreSQL Docs}
+ */
+export class CopyData {
+  static get CODE() {
+    // 'd'
+    return 0x64 as const;
+  }
+
+  constructor(public data: Uint8Array) {}
+
+  get buffer() {
+    const writer = new BinaryWriter();
+    writer.writeByte(CopyData.CODE);
+    writer.writeInt32(4 + this.data.byteLength);
+    writer.writeBuffer(this.data);
+    return writer.buffer;
+  }
+
+  static parse(buffer: Uint8Array) {
+    const reader = new BinaryReader(buffer);
+    const code = reader.readByte();
+    console.assert(
+      code === CopyData.CODE,
+      `Expected ${String.fromCharCode(CopyData.CODE)}, got ${String.fromCharCode(code)}`,
+    );
+    const length = reader.readInt32(); // length
+    const data = reader.readBuffer(length - 4);
+    console.assert(
+      reader.remaining === 0,
+      `Invalid remaining data. Expected 0, got ${reader.remaining}`,
+    );
+    return new CopyData(data);
   }
 }

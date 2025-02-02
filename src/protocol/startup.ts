@@ -37,28 +37,26 @@ export async function* startupSequence(
   const parameters = new Map<string, string>();
   while (reply.at(0) !== ReadyForQuery.CODE) {
     switch (reply.at(0)) {
-      case 0x4b: // 'K'
-        console.log("TODO", BackendKeyData.parse(reply));
+      case BackendKeyData.CODE:
+        BackendKeyData.parse(reply);
         break;
-      case 0x52:
-        console.log("TODO", AuthenticationOK.parse(reply));
+      case AuthenticationOK.CODE:
+        AuthenticationOK.parse(reply);
         break;
-      case 0x53: {
-        // 'S'
+      case ParameterStatus.CODE: {
         const parameter = ParameterStatus.parse(reply);
         parameters.set(parameter.parameter, parameter.value);
         break;
       }
       default:
         console.log("TODO", String.fromCharCode(reply.at(0)!));
+        break;
     }
 
     reply = yield SKIP;
   }
 
-  const ready = ReadyForQuery.parse(reply);
-  console.log("READY", ready);
-
+  ReadyForQuery.parse(reply);
   return { parameters };
 }
 

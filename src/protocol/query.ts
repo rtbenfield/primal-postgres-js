@@ -6,6 +6,7 @@ import {
   Describe,
   ErrorResponse,
   Execute,
+  NoData,
   ParameterDescription,
   Parse,
   ParseComplete,
@@ -24,8 +25,17 @@ export async function* simpleQuerySequence(
 ): Sequence<TransformStream<Uint8Array, DataRow>> {
   // TODO: this is a minimal implementation that does not handle much yet
   let reply = yield new Query(sql).buffer;
-  const rowDescription = RowDescription.parse(reply);
-
+  let rowDescriptions = new Array<RowDescription>();
+  switch (reply.at(0)) {
+    case ErrorResponse.CODE: {
+      const errorResponse = ErrorResponse.parse(reply);
+      throw errorResponse;
+    }
+    case RowDescription.CODE: {
+      const rowDescription = RowDescription.parse(reply);
+      rowDescriptions.push(rowDescription);
+    }
+  }
   return new TransformStream<Uint8Array, DataRow>({
     transform(chunk, controller) {
       switch (chunk.at(0)) {
@@ -138,6 +148,10 @@ export async function* prepareSequence(
   async function* flush(): Sequence<void> {
     while (true) {
       switch (reply.at(0)) {
+        case BindComplete.CODE: {
+          BindComplete.parse(reply);
+          break;
+        }
         case ParseComplete.CODE:
           // ParseComplete is only informative and has no useful data
           ParseComplete.parse(reply);
@@ -159,6 +173,7 @@ export async function* prepareSequence(
         }
         case ReadyForQuery.CODE:
         case CommandComplete.CODE:
+        case NoData.CODE:
           return;
         default: {
           const type = String.fromCharCode(reply.at(0)!);

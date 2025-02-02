@@ -2,6 +2,7 @@ import { ConsoleLogger, Logger } from "./logger";
 import {
   DataRow,
   ParameterDescription,
+  Query,
   RowDescription,
   Terminate,
 } from "./protocol";
@@ -134,10 +135,8 @@ export class Connection {
       prepareSequence(sql, ""),
       this.#logger,
     );
-    const parameterDescription = parameterDescriptions.at(0);
-    if (!parameterDescription) {
-      throw new Error("no parameter description");
-    }
+    const parameterDescription =
+      parameterDescriptions.at(0) ?? new ParameterDescription([]);
     return new PreparedStatement(
       this.#socket,
       this.#types,
@@ -145,6 +144,19 @@ export class Connection {
       parameterDescription,
       rowDescriptions,
     );
+  }
+
+  async send(sql: string) {
+    const writer = this.#socket.writable.getWriter();
+    try {
+      const buffer = new Query(sql).buffer;
+      this.#logger.debug("--> [Q]", { buffer });
+      await writer.write(buffer);
+    } finally {
+      writer.releaseLock();
+    }
+
+    return this.#socket;
   }
 }
 
@@ -262,6 +274,24 @@ export class QueryResult<T> implements AsyncIterable<T> {
 
   async cancel() {
     await this.#rows.cancel();
+  }
+
+  /**
+   * Reads the first row from the result set and discards the rest.
+   */
+  async first() {
+    const reader = this.#rows.getReader();
+    const { value, done } = await reader.read();
+    try {
+      if (done) {
+        return undefined;
+      } else {
+        await reader.cancel();
+        return value;
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   async toArray() {
