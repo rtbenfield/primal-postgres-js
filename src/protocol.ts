@@ -9,10 +9,8 @@ const decoder = new TextDecoder();
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-ERRORRESPONSE PostgreSQL Docs}
  */
 export class ErrorResponse {
-  static get CODE() {
-    // 'E'
-    return 0x45 as const;
-  }
+  /** 'E' */
+  static readonly CODE = 0x45;
 
   constructor(public fields: PostgresErrorResponse) {}
 
@@ -121,9 +119,8 @@ interface PostgresErrorResponse {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-AUTHENTICATIONOK PostgreSQL Docs}
  */
 export class AuthenticationOK {
-  static get CODE() {
-    return 0x52; // 'R'
-  }
+  /** 'R' */
+  static readonly CODE = 0x52;
 
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
@@ -224,9 +221,8 @@ export class AuthenticationSASLFinal {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BACKENDKEYDATA PostgreSQL Docs}
  */
 export class BackendKeyData {
-  static get CODE() {
-    return 0x4b; // 'B'
-  }
+  /** 'B' */
+  static readonly CODE = 0x4b;
 
   constructor(
     public pid: number,
@@ -252,9 +248,8 @@ export class BackendKeyData {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-PARAMETERSTATUS PostgreSQL Docs}
  */
 export class ParameterStatus {
-  static get CODE() {
-    return 0x53; // 'S'
-  }
+  /** 'S' */
+  static readonly CODE = 0x53;
 
   constructor(
     public parameter: string,
@@ -363,10 +358,8 @@ export class SASLResponse {
 }
 
 export class Query {
-  static get CODE() {
-    // 'Q'
-    return 0x51 as const;
-  }
+  /** 'Q' */
+  static readonly CODE = 0x51;
 
   constructor(public sql: string) {}
 
@@ -383,10 +376,8 @@ export class Query {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COMMANDCOMPLETE PostgreSQL Docs}
  */
 export class CommandComplete {
-  static get CODE() {
-    // 'C'
-    return 0x43 as const;
-  }
+  /** 'C' */
+  static readonly CODE = 0x43;
 
   constructor(public commandTag: string) {}
 
@@ -407,10 +398,8 @@ export class CommandComplete {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-DATAROW PostgreSQL Docs}
  */
 export class DataRow {
-  static get CODE() {
-    // 'D'
-    return 0x44 as const;
-  }
+  /** 'D' */
+  static readonly CODE = 0x44;
 
   constructor(public columns: ReadonlyArray<Uint8Array | null>) {}
 
@@ -452,10 +441,8 @@ export interface FieldDescription {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-ROWDESCRIPTION PostgreSQL Docs}
  */
 export class RowDescription {
-  static get CODE() {
-    // 'T'
-    return 0x54 as const;
-  }
+  /** 'T' */
+  static readonly CODE = 0x54;
 
   constructor(public columns: Array<FieldDescription>) {}
 
@@ -492,10 +479,8 @@ export class RowDescription {
 }
 
 export class ReadyForQuery {
-  static get CODE() {
-    // 'Z'
-    return 0x5a as const;
-  }
+  /** 'Z' */
+  static readonly CODE = 0x5a;
 
   constructor(public transactionStatus: number) {}
 
@@ -519,10 +504,8 @@ export class ReadyForQuery {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-PARSECOMPLETE PostgreSQL Docs}
  */
 export class Parse {
-  static get CODE() {
-    // 'P'
-    return 0x50 as const;
-  }
+  /** 'P' */
+  static readonly CODE = 0x50;
 
   constructor(
     /** The name of the destination prepared statement (an empty string selects the unnamed prepared statement). */
@@ -573,10 +556,8 @@ export class Parse {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-PARSECOMPLETE PostgreSQL Docs}
  */
 export class ParseComplete {
-  static get CODE() {
-    // '1'
-    return 0x31 as const;
-  }
+  /** '1' */
+  static readonly CODE = 0x31;
 
   get buffer() {
     const writer = new BinaryWriter();
@@ -604,10 +585,8 @@ export class ParseComplete {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-DESCRIBE PostgreSQL Docs}
  */
 export class Describe {
-  static get CODE() {
-    // 'D'
-    return 0x44 as const;
-  }
+  /** 'D' */
+  static readonly CODE = 0x44;
 
   constructor(
     public type: "S" | "P",
@@ -633,10 +612,8 @@ export class Describe {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BIND PostgreSQL Docs}
  */
 export class Bind {
-  static get CODE() {
-    // 'B'
-    return 0x42 as const;
-  }
+  /** 'B' */
+  static readonly CODE = 0x42;
 
   constructor(
     /** The name of the destination portal (an empty string selects the unnamed portal). */
@@ -716,10 +693,8 @@ export class Bind {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BINDCOMPLETE PostgreSQL Docs}
  */
 export class BindComplete {
-  static get CODE() {
-    // '2'
-    return 0x32 as const;
-  }
+  /** '2' */
+  static readonly CODE = 0x32;
 
   get buffer() {
     const writer = new BinaryWriter();
@@ -747,10 +722,8 @@ export class BindComplete {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-EXECUTE PostgreSQL Docs}
  */
 export class Execute {
-  static get CODE() {
-    // 'E'
-    return 0x45 as const;
-  }
+  /** 'E' */
+  static readonly CODE = 0x45;
 
   constructor(
     /** The name of the portal to execute (an empty string selects the unnamed portal). */
@@ -778,10 +751,8 @@ export class Execute {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-SYNC PostgreSQL Docs}
  */
 export class Sync {
-  static get CODE() {
-    // 'S'
-    return 0x53 as const;
-  }
+  /** 'S' */
+  static readonly CODE = 0x53;
 
   get buffer() {
     const writer = new BinaryWriter(5);
@@ -792,10 +763,8 @@ export class Sync {
 }
 
 export class ParameterDescription {
-  static get CODE() {
-    // 't'
-    return 0x74 as const;
-  }
+  /** 't' */
+  static readonly CODE = 0x74;
 
   constructor(public parameterTypes: ReadonlyArray<number>) {}
 
@@ -822,10 +791,8 @@ export class ParameterDescription {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-FLUSH PostgreSQL Docs}
  */
 export class Flush {
-  static get CODE() {
-    // 'H'
-    return 0x48 as const;
-  }
+  /** 'H' */
+  static readonly CODE = 0x48;
 
   get buffer() {
     const writer = new BinaryWriter(5);
@@ -841,10 +808,8 @@ export class Flush {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-TERMINATE PostgreSQL Docs}
  */
 export class Terminate {
-  static get CODE() {
-    // 'X'
-    return 0x58 as const;
-  }
+  /** 'X' */
+  static readonly CODE = 0x58;
 
   get buffer() {
     const writer = new BinaryWriter(5);
@@ -907,10 +872,8 @@ export function authenticationSwitch(buffer: Uint8Array) {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-NODATA PostgreSQL Docs}
  */
 export class NoData {
-  static get CODE() {
-    // 'n'
-    return 0x6e as const;
-  }
+  /** 'n' */
+  static readonly CODE = 0x6e;
 
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
@@ -925,9 +888,8 @@ export class NoData {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COPYBOTHRESPONSE PostgreSQL Docs}
  */
 export class CopyBothResponse {
-  static get CODE() {
-    return 0x57 as const; // 'W'
-  }
+  /** 'W' */
+  static readonly CODE = 0x57;
 
   constructor(
     public formatCode: number,
@@ -959,10 +921,8 @@ export class CopyBothResponse {
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COPYDATA PostgreSQL Docs}
  */
 export class CopyData {
-  static get CODE() {
-    // 'd'
-    return 0x64 as const;
-  }
+  /** 'd' */
+  static readonly CODE = 0x64;
 
   constructor(public data: Uint8Array) {}
 
