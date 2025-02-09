@@ -130,9 +130,12 @@ export class Connection {
   }
 
   async prepare(sql: string) {
+    // compute a hash of the query to use as the prepared statement name
+    // this allows multiple prepared statements on the same connection without duplication
+    const name = murmurHash3(sql);
     const { parameterDescriptions, rowDescriptions } = await executeSequence(
       this.#socket,
-      prepareSequence(sql, ""),
+      prepareSequence(sql, name),
       this.#logger,
     );
     const parameterDescription =
@@ -141,6 +144,7 @@ export class Connection {
       this.#socket,
       this.#types,
       this.#logger,
+      name,
       parameterDescription,
       rowDescriptions,
     );
@@ -169,6 +173,7 @@ export class PreparedStatement<
   readonly #socket: Socket;
   readonly #types: TypeParser;
 
+  readonly #name: string;
   readonly #parameterEncoding;
   readonly #resultDecoding;
 
@@ -186,27 +191,23 @@ export class PreparedStatement<
     socket: Socket,
     types: Types,
     logger: Logger,
+    name: string,
     parameterDescription: ParameterDescription,
     rowDescription: ReadonlyArray<RowDescription>,
   ) {
     this.#logger = logger;
+    this.#name = name;
     this.#socket = socket;
     this.#types = types;
 
     this.#parameterEncoding = parameterDescription.parameterTypes.map((oid) => {
       const encoder = this.#types.getType(oid);
-      if (!encoder) {
-        throw new Error(`no type encoder for OID ${oid}`);
-      }
       return encoder.encode;
     });
 
     this.#resultDecoding = rowDescription.map((row) => {
       return row.columns.map((col) => {
         const type = this.#types.getType(col.oid);
-        if (!type) {
-          throw new Error(`no type decoder for OID ${col.oid}`);
-        }
         return [col.fieldName, type.decode] as const;
       });
     });
@@ -226,7 +227,11 @@ export class PreparedStatement<
     const formatCode = this.#types.type === "binary" ? 1 : 0;
     const stream = await executeSequenceStream(
       this.#socket,
-      executePreparedStatementSequence(encodedParameters, formatCode),
+      executePreparedStatementSequence(
+        this.#name,
+        encodedParameters,
+        formatCode,
+      ),
       this.#logger,
     );
     const transform = new TransformStream<DataRow, Result>({
@@ -344,4 +349,39 @@ export interface ResolvedConnectionOptions {
   replication: true | false | "database";
   username: string;
   password: string | null;
+}
+
+function murmurHash3(value: string, seed = 0) {
+  const length = value.length;
+  let h1 = seed ^ length;
+
+  const bytes = new TextEncoder().encode(value);
+
+  const c1 = 0xcc9e2d51;
+  const c2 = 0x1b873593;
+
+  for (let i = 0; i < length; i += 4) {
+    let k1 = 0;
+    for (let j = 0; j < 4; j++) {
+      if (i + j < length) {
+        k1 |= bytes[i + j]! << (j * 8);
+      }
+    }
+
+    k1 = ((k1 * c1) | 0) >>> 0;
+    k1 = (k1 << 15) | (k1 >>> 17);
+    k1 = ((k1 * c2) | 0) >>> 0;
+
+    h1 ^= k1;
+    h1 = ((h1 << 13) | (h1 >>> 19)) * 5 + 0xe6546b64;
+  }
+
+  h1 ^= length;
+  h1 ^= h1 >>> 16;
+  h1 = ((h1 * 0x85ebca6b) | 0) >>> 0;
+  h1 ^= h1 >>> 13;
+  h1 = ((h1 * 0xc2b2ae35) | 0) >>> 0;
+  h1 ^= h1 >>> 16;
+
+  return (h1 >>> 0).toString(16);
 }

@@ -137,7 +137,7 @@ export async function* prepareSequence(
   rowDescriptions: RowDescription[];
 }> {
   let reply = yield [
-    new Parse("", sql, []).buffer,
+    new Parse(name, sql, []).buffer,
     new Describe("S", name).buffer,
     // Sync will tell Postgres to send a ReadyForQuery when the describe completes
     new Sync().buffer,
@@ -191,11 +191,12 @@ export async function* prepareSequence(
 }
 
 export async function* executePreparedStatementSequence(
+  name: string,
   parameters: ReadonlyArray<null | string | Uint8Array>,
   formatCode: 0 | 1 = 0,
 ): Sequence<TransformStream<Uint8Array, DataRow>> {
   yield [
-    new Bind("", "", parameters, [formatCode]).buffer,
+    new Bind("", name, parameters, [formatCode]).buffer,
     new Execute("").buffer,
     new Sync().buffer,
     // Flush is not necessary after Sync
