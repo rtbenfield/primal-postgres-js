@@ -1,13 +1,18 @@
 {
   "name": "@primaljs/postgres",
   "version": "0.0.0",
+  "type": "module",
   "description": "",
   "keywords": [],
   "license": "MIT",
   "author": "Tyler Benfield <tyler@tylerbenfield.dev>",
   "main": "index.js",
   "sideEffects": false,
+  "exports": {
+    "./*": "./dist/*"
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "test": "vitest"
   },
   "devDependencies": {

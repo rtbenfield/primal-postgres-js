@@ -3,6 +3,13 @@
   "compilerOptions": {
     "lib": ["ES2021.String", "ES2024.ArrayBuffer"],
     "moduleResolution": "node",
-    "target": "ES2023"
-  }
+    "target": "ES2023",
+    "outDir": "dist/",
+    "noUnusedParameters": false,
+    "noUnusedLocals": false,
+    "rootDir": "src/",
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }
