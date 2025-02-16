@@ -41,10 +41,7 @@ export class PostgresAlignmentStream extends TransformStream<
            * concatenation would cause a minium of 2x memory usage and fail to
            * distribute the CPU work over the duration of the stream.
            */
-          const position = pending.byteLength;
-          pending.resize(pending.byteLength + chunk.byteLength);
-          buffer = new Uint8Array(pending);
-          buffer.set(chunk, position);
+          buffer = extendAndCopy(pending, chunk);
         } else {
           buffer = chunk;
         }
@@ -59,9 +56,12 @@ export class PostgresAlignmentStream extends TransformStream<
           if (buffer.byteLength >= messageSize) {
             // we have a complete Postgres message to emit
             // use subarray to avoid copying the buffer as we split it
-            const message = buffer.subarray(0, messageSize);
+            const { message, remaining } = partitionMessage(
+              buffer,
+              messageSize,
+            );
             controller.enqueue(message);
-            buffer = buffer.subarray(messageSize);
+            buffer = remaining;
             // if we can emit a message, we can reset the pending buffer
             pending = null;
           } else {
@@ -74,24 +74,44 @@ export class PostgresAlignmentStream extends TransformStream<
         if (buffer.byteLength > 0 && !pending) {
           // copy the remaining bytes into a new resizable ArrayBuffer
           // we do not reuse the previous buffer because it is used downstream
-          pending = new ArrayBuffer(buffer.byteLength, {
-            // allow the buffer to resize up to the max
-            // resizable buffers do not allocate this space immediately
-            maxByteLength: PG_MAX_MESSAGE_SIZE,
-          });
-          new Uint8Array(pending).set(buffer);
+          pending = cloneToResizableBuffer(buffer);
         }
       },
     });
   }
 }
 
+function cloneToResizableBuffer(buffer: Uint8Array): ArrayBuffer {
+  // copy the remaining bytes into a new resizable ArrayBuffer
+  // we do not reuse the previous buffer because it is used downstream
+  const resizable = new ArrayBuffer(buffer.byteLength, {
+    // allow the buffer to resize up to the max
+    // resizable buffers do not allocate this space immediately
+    maxByteLength: PG_MAX_MESSAGE_SIZE,
+  });
+  new Uint8Array(resizable).set(buffer);
+  return resizable;
+}
+
 function getMessageLength(buffer: Uint8Array): number {
-  const view = new DataView(
-    buffer.buffer,
-    buffer.byteOffset,
-    buffer.byteLength,
+  // mimic readUint32 from offset=1 without the overhead of a DataView
+  // add 1 for the header that we skip with the offset
+  return (
+    1 +
+    ((buffer[1]! << 24) | (buffer[2]! << 16) | (buffer[3]! << 8) | buffer[4]!)
   );
-  // encoded message size +1 and offset 1 for type byte
-  return view.getUint32(1, false) + 1;
+}
+
+function extendAndCopy(existing: ArrayBuffer, chunk: Uint8Array): Uint8Array {
+  const position = existing.byteLength;
+  existing.resize(existing.byteLength + chunk.byteLength);
+  const buffer = new Uint8Array(existing);
+  buffer.set(chunk, position);
+  return buffer;
+}
+
+function partitionMessage(buffer: Uint8Array, messageSize: number) {
+  const message = buffer.subarray(0, messageSize);
+  const remaining = buffer.subarray(messageSize);
+  return { message, remaining };
 }

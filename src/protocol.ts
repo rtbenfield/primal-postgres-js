@@ -18,10 +18,10 @@ export class ErrorResponse {
     const reader = new BinaryReader(buffer);
 
     const code = reader.readByte();
-    console.assert(
-      code === ErrorResponse.CODE,
-      `Expected 'E', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === ErrorResponse.CODE,
+    //   `Expected 'E', got ${String.fromCharCode(code)}`,
+    // );
 
     reader.readInt32(); // length, no-op
 
@@ -82,14 +82,14 @@ export class ErrorResponse {
           errorResponse.routine = value;
           break;
         default:
-          console.warn(
-            `Unknown field type '${String.fromCharCode(fieldType)}'`,
-          );
+          // console.warn(
+          //   `Unknown field type '${String.fromCharCode(fieldType)}'`,
+          // );
       }
     }
 
     const nullTerminator = reader.readByte();
-    console.assert(nullTerminator === 0x0, "Expected null terminator");
+    // console.assert(nullTerminator === 0x0, "Expected null terminator");
 
     return new ErrorResponse(errorResponse);
   }
@@ -125,14 +125,14 @@ export class AuthenticationOK {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === AuthenticationOK.CODE,
-      `Expected 'R', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === AuthenticationOK.CODE,
+    //   `Expected 'R', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
-    console.assert(length === 8, `Expected length 8, got ${length}`);
+    // console.assert(length === 8, `Expected length 8, got ${length}`);
     const tag = reader.readInt32();
-    console.assert(tag === 0, `Expected 0, got ${tag}`);
+    // console.assert(tag === 0, `Expected 0, got ${tag}`);
     return new AuthenticationOK();
   }
 }
@@ -146,19 +146,19 @@ export class AuthenticationSASL {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === 0x52,
-      `Expected 'R', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === 0x52,
+    //   `Expected 'R', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
     const tag = reader.readInt32();
-    console.assert(tag === 10, `Expected 10, got ${tag}`);
+    // console.assert(tag === 10, `Expected 10, got ${tag}`);
 
     const mechanisms = new Set<string>();
     while (reader.remaining > 1) {
       mechanisms.add(reader.readString());
     }
-    console.assert(reader.readByte() === 0x0, "Expected 0x0");
+    // console.assert(reader.readByte() === 0x0, "Expected 0x0");
     return new AuthenticationSASL(mechanisms);
   }
 }
@@ -172,19 +172,19 @@ export class AuthenticationSASLContinue {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === 0x52,
-      `Expected 'R', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === 0x52,
+    //   `Expected 'R', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
     const tag = reader.readInt32();
-    console.assert(tag === 11, `Expected 11, got ${tag}`);
-    console.assert(
-      reader.remaining === length - 8,
-      `Invalid length of remaining data. Expected ${length - 8}, got ${
-        reader.remaining
-      }`,
-    );
+    // console.assert(tag === 11, `Expected 11, got ${tag}`);
+    // console.assert(
+    //   reader.remaining === length - 8,
+    //   `Invalid length of remaining data. Expected ${length - 8}, got ${
+    //     reader.remaining
+    //   }`,
+    // );
     const data = decoder.decode(reader.rest);
     return new AuthenticationSASLContinue(data);
   }
@@ -199,19 +199,19 @@ export class AuthenticationSASLFinal {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === 0x52,
-      `Expected 'R', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === 0x52,
+    //   `Expected 'R', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
     const tag = reader.readInt32();
-    console.assert(tag === 12, `Expected 12, got ${tag}`);
-    console.assert(
-      reader.remaining === length - 8,
-      `Invalid length of remaining data. Expected ${length - 8}, got ${
-        reader.remaining
-      }`,
-    );
+    // console.assert(tag === 12, `Expected 12, got ${tag}`);
+    // console.assert(
+    //   reader.remaining === length - 8,
+    //   `Invalid length of remaining data. Expected ${length - 8}, got ${
+    //     reader.remaining
+    //   }`,
+    // );
     const data = decoder.decode(reader.rest);
     return new AuthenticationSASLFinal(data);
   }
@@ -232,12 +232,12 @@ export class BackendKeyData {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === BackendKeyData.CODE,
-      `Expected 'B', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === BackendKeyData.CODE,
+    //   `Expected 'B', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
-    console.assert(length === 12, `Expected length 12, got ${length}`);
+    // console.assert(length === 12, `Expected length 12, got ${length}`);
     const pid = reader.readInt32();
     const secretKey = reader.readInt32();
     return new BackendKeyData(pid, secretKey);
@@ -259,10 +259,10 @@ export class ParameterStatus {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === ParameterStatus.CODE,
-      `Expected 'S', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === ParameterStatus.CODE,
+    //   `Expected 'S', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
     const parameter = reader.readString();
     const value = reader.readString();
@@ -384,10 +384,10 @@ export class CommandComplete {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === CommandComplete.CODE,
-      `Expected 'C', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === CommandComplete.CODE,
+    //   `Expected 'C', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
     const commandTag = reader.readString();
     return new CommandComplete(commandTag);
@@ -406,10 +406,10 @@ export class DataRow {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === DataRow.CODE,
-      `Expected 'D', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === DataRow.CODE,
+    //   `Expected 'D', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
     const columnCount = reader.readInt16();
     const columns = new Array<Uint8Array | null>(columnCount);
@@ -449,10 +449,10 @@ export class RowDescription {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === RowDescription.CODE,
-      `Expected 'T', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === RowDescription.CODE,
+    //   `Expected 'T', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
     const fieldCount = reader.readInt16();
     const fields = new Array<FieldDescription>(fieldCount);
@@ -487,12 +487,12 @@ export class ReadyForQuery {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === ReadyForQuery.CODE,
-      `Expected 'Z', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === ReadyForQuery.CODE,
+    //   `Expected 'Z', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
-    console.assert(length === 5, `Expected length 5, got ${length}`);
+    // console.assert(length === 5, `Expected length 5, got ${length}`);
     const transactionStatus = reader.readByte();
     return new ReadyForQuery(transactionStatus);
   }
@@ -534,10 +534,10 @@ export class Parse {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === Parse.CODE,
-      `Expected 'P', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === Parse.CODE,
+    //   `Expected 'P', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
     const name = reader.readString();
     const query = reader.readString();
@@ -569,12 +569,12 @@ export class ParseComplete {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === ParseComplete.CODE,
-      `Expected '1', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === ParseComplete.CODE,
+    //   `Expected '1', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
-    console.assert(length === 4, `Expected length 4, got ${length}`);
+    // console.assert(length === 4, `Expected length 4, got ${length}`);
     return new ParseComplete();
   }
 }
@@ -706,12 +706,12 @@ export class BindComplete {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === BindComplete.CODE,
-      `Expected '2', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === BindComplete.CODE,
+    //   `Expected '2', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
-    console.assert(length === 4, `Expected length 4, got ${length}`);
+    // console.assert(length === 4, `Expected length 4, got ${length}`);
     return new BindComplete();
   }
 }
@@ -771,10 +771,10 @@ export class ParameterDescription {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === ParameterDescription.CODE,
-      `Expected 't', got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === ParameterDescription.CODE,
+    //   `Expected 't', got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32();
     const numParams = reader.readInt16();
     const paramTypes = new Array<number>(numParams);
@@ -823,10 +823,10 @@ export class Terminate {
 export function authenticationSwitch(buffer: Uint8Array) {
   const reader = new BinaryReader(buffer);
   const code = reader.readByte();
-  console.assert(
-    code === 0x52, // 'R'
-    `Expected 'R', got ${String.fromCharCode(code)}`,
-  );
+  // console.assert(
+  //   code === 0x52, // 'R'
+  //   `Expected 'R', got ${String.fromCharCode(code)}`,
+  // );
 
   const length = reader.readInt32();
   const tag = reader.readInt32();
@@ -878,7 +878,7 @@ export class NoData {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const length = reader.readInt32(); // length
-    console.assert(length === 4, `Expected length 4, got ${length}`);
+    // console.assert(length === 4, `Expected length 4, got ${length}`);
   }
 }
 
@@ -899,12 +899,12 @@ export class CopyBothResponse {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === CopyBothResponse.CODE,
-      `Expected ${String.fromCharCode(CopyBothResponse.CODE)}, got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === CopyBothResponse.CODE,
+    //   `Expected ${String.fromCharCode(CopyBothResponse.CODE)}, got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32(); // length
-    console.assert(length === 7, `Expected length 4, got ${length}`);
+    // console.assert(length === 7, `Expected length 4, got ${length}`);
     const formatCode = reader.readByte();
     const numCols = reader.readInt16();
     const columnFormats = new Array<number>(numCols);
@@ -937,16 +937,16 @@ export class CopyData {
   static parse(buffer: Uint8Array) {
     const reader = new BinaryReader(buffer);
     const code = reader.readByte();
-    console.assert(
-      code === CopyData.CODE,
-      `Expected ${String.fromCharCode(CopyData.CODE)}, got ${String.fromCharCode(code)}`,
-    );
+    // console.assert(
+    //   code === CopyData.CODE,
+    //   `Expected ${String.fromCharCode(CopyData.CODE)}, got ${String.fromCharCode(code)}`,
+    // );
     const length = reader.readInt32(); // length
     const data = reader.readBuffer(length - 4);
-    console.assert(
-      reader.remaining === 0,
-      `Invalid remaining data. Expected 0, got ${reader.remaining}`,
-    );
+    // console.assert(
+    //   reader.remaining === 0,
+    //   `Invalid remaining data. Expected 0, got ${reader.remaining}`,
+    // );
     return new CopyData(data);
   }
 }

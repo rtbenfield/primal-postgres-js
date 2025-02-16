@@ -18,7 +18,7 @@ export async function executeSequence<T>(
 
         if (outbox.value instanceof Uint8Array) {
           // send the packet to the database
-          const firstByte = String.fromCharCode(outbox.value.at(0)!);
+          const firstByte = String.fromCharCode(outbox.value[0]!);
           logger.debug(`--> [${firstByte}]`, {
             buffer: Buffer.from(outbox.value),
           });
@@ -32,7 +32,7 @@ export async function executeSequence<T>(
             if (message === NOREPLY) {
               noreply = true;
             } else {
-              const firstByte = String.fromCharCode(message.at(0)!);
+              const firstByte = String.fromCharCode(message[0]!);
               logger.debug(`--> [${firstByte}]`, {
                 buffer: Buffer.from(message),
               });
@@ -57,7 +57,7 @@ export async function executeSequence<T>(
           if (inbox.done) {
             throw new Error("Connection closed unexpectedly");
           }
-          const firstByte = String.fromCharCode(inbox.value.at(0)!);
+          const firstByte = String.fromCharCode(inbox.value[0]!);
           logger.debug(`<-- [${firstByte}]`, {
             buffer: Buffer.from(inbox.value),
           });
@@ -100,7 +100,7 @@ export async function executeSequenceStream<T>(
           if (nextResult.done) {
             throw new Error(`connection was closed unexpectedly`);
           }
-          const firstByte = String.fromCharCode(nextResult.value.at(0)!);
+          const firstByte = String.fromCharCode(nextResult.value[0]!);
           logger.debug(`<-- [${firstByte}]`, {
             buffer: Buffer.from(nextResult.value),
           });

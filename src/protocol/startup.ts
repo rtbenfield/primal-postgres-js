@@ -11,7 +11,7 @@ import {
   SASLInitialResponse,
   SASLResponse,
   StartupMessage,
-} from "../protocol";
+} from "../protocol.js";
 import { Sequence, SKIP } from "../sequence";
 
 const encoder = new TextEncoder();
@@ -35,8 +35,8 @@ export async function* startupSequence(
   reply = yield SKIP;
 
   const parameters = new Map<string, string>();
-  while (reply.at(0) !== ReadyForQuery.CODE) {
-    switch (reply.at(0)) {
+  while (reply[0] !== ReadyForQuery.CODE) {
+    switch (reply[0]) {
       case BackendKeyData.CODE:
         BackendKeyData.parse(reply);
         break;
@@ -49,7 +49,7 @@ export async function* startupSequence(
         break;
       }
       default:
-        console.log("TODO", String.fromCharCode(reply.at(0)!));
+        console.log("TODO", String.fromCharCode(reply[0]!));
         break;
     }
 
@@ -131,7 +131,7 @@ async function* scramSha256Sequence(
   }
 
   reply = yield SKIP;
-  if (reply.at(0) !== AuthenticationOK.CODE) {
+  if (reply[0] !== AuthenticationOK.CODE) {
     throw new Error("SCRAM-SHA-256 authentication failed");
   }
 }

@@ -4,6 +4,11 @@ import { BinaryTypeParser, PostgresBinaryType } from "./mod";
 
 const decoder = new TextDecoder();
 
+/** Precomputed mapping of bytes to thei hex values. */
+const BYTES_TO_HEX = Object.freeze(
+  Array.from({ length: 0xff }, (_, i) => i.toString(16).padStart(2, "0")),
+);
+
 /**
  * Represents a tuple identifier data type in the Postgres protocol.
  * A tuple identifier uniquely identifies a row within a relation.
@@ -226,7 +231,6 @@ export const BUILTINS = Object.freeze(
       {
         name: "bool",
         decode(buffer) {
-          console.log("!!!!!!!!!!!!", Buffer.from(buffer));
           throw new Error("Method not implemented.");
           // return new BinaryReader(buffer).readBool();
         },
@@ -651,17 +655,15 @@ export const BUILTINS = Object.freeze(
       {
         name: "uuid",
         decode(buffer) {
-          const hexArray = Array.from(buffer, (byte) =>
-            byte.toString(16).padStart(2, "0"),
-          );
-          const segments = [
-            hexArray.slice(0, 4).join(""),
-            hexArray.slice(4, 6).join(""),
-            hexArray.slice(6, 8).join(""),
-            hexArray.slice(8, 10).join(""),
-            hexArray.slice(10, 16).join(""),
-          ] as const;
-          return `${segments[0]}-${segments[1]}-${segments[2]}-${segments[3]}-${segments[4]}`;
+          let uuid = "";
+          for (let i = 0; i < 16; i++) {
+            let hexValue = BYTES_TO_HEX[buffer[i]!]!;
+            uuid += hexValue;
+            if (i === 3 || i === 5 || i === 7 || i === 9) {
+              uuid += "-";
+            }
+          }
+          return uuid as any;
         },
         encode(value) {
           const byteArray = new Uint8Array(16);

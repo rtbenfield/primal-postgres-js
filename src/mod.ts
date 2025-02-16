@@ -139,7 +139,7 @@ export class Connection {
       this.#logger,
     );
     const parameterDescription =
-      parameterDescriptions.at(0) ?? new ParameterDescription([]);
+      parameterDescriptions[0] ?? new ParameterDescription([]);
     return new PreparedStatement(
       this.#socket,
       this.#types,
@@ -234,27 +234,25 @@ export class PreparedStatement<
       ),
       this.#logger,
     );
+    // TODO: handle multiple result sets
+    const rowDescription = this.#resultDecoding[0]!;
+    const types = this.#types;
     const transform = new TransformStream<DataRow, Result>({
-      transform: (row, controller) => {
-        // TODO: handle multiple result sets
-        const rowDescription = this.#resultDecoding.at(0)!;
-        const entries = rowDescription.map(([name, decoder], i) => {
-          const raw = row.columns[i];
-          if (typeof raw === "undefined") {
-            throw new Error(
-              `Expected ${rowDescription.length} columns, got ${row.columns.length}`,
-            );
-          } else if (raw === null) {
-            return [name, null] as const;
-          } else if (this.#types.type === "text") {
+      transform(row, controller) {
+        const result: Record<string, unknown> = {};
+        for (let i = 0; i < rowDescription.length; i++) {
+          const [name, decoder] = rowDescription[i]!;
+          const raw = row.columns[i] as Uint8Array | null;
+          if (raw === null) {
+            result[name] = null;
+          } else if (types.type === "text") {
             const value = new TextDecoder().decode(raw);
-            return [name, decoder(value as any, this.#types)] as const;
+            result[name] = decoder(value as any, types);
           } else {
-            return [name, decoder(raw as any, this.#types)] as const;
+            result[name] = decoder(raw as any, types);
           }
-        });
-        const result = Object.fromEntries(entries) as Result;
-        controller.enqueue(result);
+        }
+        controller.enqueue(result as Result);
       },
     });
     const finalResults = stream.pipeThrough(transform);

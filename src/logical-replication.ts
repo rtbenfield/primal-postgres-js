@@ -33,7 +33,7 @@ export class PgoutputDecoderStream extends TransformStream<
       });
       return Object.fromEntries(
         tupleData.columns.map((value, i) => {
-          const col = columns.at(i);
+          const col = columns[i];
           if (!col) {
             throw new PgoutputDecoderError(
               `column ${i} not found in relation ${relation.name}`,
@@ -135,7 +135,7 @@ export class PgoutputDecoderStream extends TransformStream<
 }
 
 function handleChunk(chunk: Uint8Array) {
-  switch (chunk.at(0)) {
+  switch (chunk[0]) {
     case CopyBothResponse.CODE:
       return null;
     case CopyData.CODE:
@@ -153,20 +153,20 @@ function handleChunk(chunk: Uint8Array) {
       throw ErrorResponse.parse(chunk);
     default:
       throw new PgoutputDecoderError(
-        `invalid message code ${String.fromCharCode(chunk.at(0)!)}`,
+        `invalid message code ${String.fromCharCode(chunk[0]!)}`,
       );
   }
 }
 
 function matchReplicationMessage(data: Uint8Array) {
-  switch (data.at(0)) {
+  switch (data[0]) {
     case PrimaryKeepalive.CODE:
       return PrimaryKeepalive.parse(data);
     case XLogData.CODE:
       return XLogData.parse(data);
     default:
       throw new PgoutputDecoderError(
-        `invalid message code ${String.fromCharCode(data.at(0)!)}`,
+        `invalid message code ${String.fromCharCode(data[0]!)}`,
       );
   }
 }
@@ -174,7 +174,7 @@ function matchReplicationMessage(data: Uint8Array) {
 export class PgoutputDecoderError extends Error {}
 
 function matchLogicalReplicationData(data: Uint8Array) {
-  switch (data.at(0)) {
+  switch (data[0]) {
     case Begin.CODE:
       return Begin.parse(data);
     case Commit.CODE:
@@ -193,7 +193,7 @@ function matchLogicalReplicationData(data: Uint8Array) {
       return Delete.parse(data);
     default:
       throw new PgoutputDecoderError(
-        `unexpected pgoutput message type ${String.fromCharCode(data.at(0)!)}`,
+        `unexpected pgoutput message type ${String.fromCharCode(data[0]!)}`,
       );
   }
 }

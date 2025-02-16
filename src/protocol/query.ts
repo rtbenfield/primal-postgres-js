@@ -26,7 +26,7 @@ export async function* simpleQuerySequence(
   // TODO: this is a minimal implementation that does not handle much yet
   let reply = yield new Query(sql).buffer;
   let rowDescriptions = new Array<RowDescription>();
-  switch (reply.at(0)) {
+  switch (reply[0]) {
     case ErrorResponse.CODE: {
       const errorResponse = ErrorResponse.parse(reply);
       throw errorResponse;
@@ -38,7 +38,7 @@ export async function* simpleQuerySequence(
   }
   return new TransformStream<Uint8Array, DataRow>({
     transform(chunk, controller) {
-      switch (chunk.at(0)) {
+      switch (chunk[0]) {
         case DataRow.CODE: {
           const dataRow = DataRow.parse(chunk);
           controller.enqueue(dataRow);
@@ -83,7 +83,7 @@ export async function* extendedQuerySequence(
   const rowDescriptions = new Array<RowDescription>();
   return new TransformStream<Uint8Array, DataRow>({
     transform(message, controller) {
-      switch (message.at(0)) {
+      switch (message[0]) {
         case BindComplete.CODE: {
           BindComplete.parse(message);
           return;
@@ -121,7 +121,7 @@ export async function* extendedQuerySequence(
         }
         default: {
           throw new Error(
-            `Unexpected packet type ${String.fromCharCode(message.at(0)!)}`,
+            `Unexpected packet type ${String.fromCharCode(message[0]!)}`,
           );
         }
       }
@@ -147,7 +147,7 @@ export async function* prepareSequence(
   const rowDescriptions = new Array<RowDescription>();
   async function* flush(): Sequence<void> {
     while (true) {
-      switch (reply.at(0)) {
+      switch (reply[0]) {
         case BindComplete.CODE: {
           BindComplete.parse(reply);
           break;
@@ -176,7 +176,7 @@ export async function* prepareSequence(
         case NoData.CODE:
           return;
         default: {
-          const type = String.fromCharCode(reply.at(0)!);
+          const type = String.fromCharCode(reply[0]!);
           throw new Error(`Unexpected packet type ${type}`);
         }
       }
@@ -205,7 +205,7 @@ export async function* executePreparedStatementSequence(
 
   return new TransformStream<Uint8Array, DataRow>({
     transform(message, controller) {
-      switch (message.at(0)) {
+      switch (message[0]) {
         case BindComplete.CODE: {
           BindComplete.parse(message);
           return;
@@ -231,7 +231,7 @@ export async function* executePreparedStatementSequence(
         }
         default: {
           throw new Error(
-            `Unexpected packet type ${String.fromCharCode(message.at(0)!)}`,
+            `Unexpected packet type ${String.fromCharCode(message[0]!)}`,
           );
         }
       }
