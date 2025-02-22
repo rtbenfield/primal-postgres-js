@@ -82,9 +82,9 @@ export class ErrorResponse {
           errorResponse.routine = value;
           break;
         default:
-          // console.warn(
-          //   `Unknown field type '${String.fromCharCode(fieldType)}'`,
-          // );
+        // console.warn(
+        //   `Unknown field type '${String.fromCharCode(fieldType)}'`,
+        // );
       }
     }
 
