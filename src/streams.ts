@@ -50,15 +50,23 @@ export class PostgresAlignmentStream extends TransformStream<
         // a single chunk may contain multiple Postgres messages
         // 5 is the minimum size for message header
         while (buffer.byteLength >= 5) {
-          // encoded message size +1 for type byte
-          const messageSize = getMessageLength(buffer);
+          // encoded message length + 1 for type byte
+          const messageLength = getMessageLength(buffer);
 
-          if (buffer.byteLength >= messageSize) {
+          if (buffer.byteLength === messageLength) {
             // we have a complete Postgres message to emit
-            // use subarray to avoid copying the buffer as we split it
+            // the buffer is the exact size, so we don't need to partition it
+            controller.enqueue(buffer);
+            // if we can emit a message, we can reset the pending buffer
+            pending = null;
+            // break out of the entire flow to avoid needing to reassign buffer
+            return;
+          } else if (buffer.byteLength >= messageLength) {
+            // we have a complete Postgres message to emit
+            // split the message from the remaining bytes of the buffer
             const { message, remaining } = partitionMessage(
               buffer,
-              messageSize,
+              messageLength,
             );
             controller.enqueue(message);
             buffer = remaining;
@@ -81,6 +89,12 @@ export class PostgresAlignmentStream extends TransformStream<
   }
 }
 
+/**
+ * Clones the specified buffer into a new resizable ArrayBuffer, copying the
+ * bytes into it the new buffer in the process. This is used to convert a
+ * fixed size ArrayBuffer into a resizable one with a maximum size of
+ * `PG_MAX_MESSAGE_SIZE`.
+ */
 function cloneToResizableBuffer(buffer: Uint8Array): ArrayBuffer {
   // copy the remaining bytes into a new resizable ArrayBuffer
   // we do not reuse the previous buffer because it is used downstream
@@ -102,6 +116,10 @@ function getMessageLength(buffer: Uint8Array): number {
   );
 }
 
+/**
+ * Extends an existing resizable ArrayBuffer and copies the specified chunk
+ * into it at the end.
+ */
 function extendAndCopy(existing: ArrayBuffer, chunk: Uint8Array): Uint8Array {
   const position = existing.byteLength;
   existing.resize(existing.byteLength + chunk.byteLength);
@@ -110,8 +128,12 @@ function extendAndCopy(existing: ArrayBuffer, chunk: Uint8Array): Uint8Array {
   return buffer;
 }
 
-function partitionMessage(buffer: Uint8Array, messageSize: number) {
-  const message = buffer.subarray(0, messageSize);
-  const remaining = buffer.subarray(messageSize);
+/**
+ * Splits the specified buffer into two parts based on the specified message
+ * length.
+ */
+function partitionMessage(buffer: Uint8Array, messageLength: number) {
+  const message = buffer.subarray(0, messageLength);
+  const remaining = buffer.subarray(messageLength);
   return { message, remaining };
 }
