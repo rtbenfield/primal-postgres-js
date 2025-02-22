@@ -1,6 +1,6 @@
 import { Client } from "../src/mod";
 import { NodeSocket } from "../src/socket.node";
-import { defaultBinaryTypeParser } from "../src/types/built-ins";
+import { defaultBinaryTypeParser } from "../src/types/defaults";
 
 async function main() {
   const client = new Client({

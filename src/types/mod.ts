@@ -1,5 +1,6 @@
 export interface PostgresBinaryType<T> {
   get name(): string;
+  get oid(): number;
 
   decode(buffer: Uint8Array, types: TypeParser): T;
   encode(value: T, types: TypeParser): Uint8Array;
@@ -7,6 +8,7 @@ export interface PostgresBinaryType<T> {
 
 export interface PostgresTextType<T> {
   get name(): string;
+  get oid(): number;
 
   decode(buffer: Uint8Array, types: TypeParser): T;
   encode(value: T, types: TypeParser): Uint8Array;
@@ -42,9 +44,17 @@ export class BinaryTypeParser implements PostgresBinaryTypeParser {
     return type as PostgresBinaryType<T>;
   }
 
-  register(tuples: Iterable<[number, PostgresBinaryType<unknown>]>) {
-    for (const [oid, type] of tuples) {
-      this.#types.set(oid, type);
+  register(type: PostgresBinaryType<unknown>): this;
+  register(types: Iterable<PostgresBinaryType<unknown>>): this;
+  register(
+    types: PostgresBinaryType<unknown> | Iterable<PostgresBinaryType<unknown>>,
+  ) {
+    if (Symbol.iterator in types) {
+      for (const type of types) {
+        this.#types.set(type.oid, type);
+      }
+    } else {
+      this.#types.set(types.oid, types);
     }
     return this;
   }

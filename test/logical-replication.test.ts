@@ -2,7 +2,7 @@ import { beforeAll, expect, test } from "vitest";
 import { PgoutputDecoderStream } from "../src/logical-replication";
 import { Client, PreparedStatement, QueryResult } from "../src/mod";
 import { NodeSocket } from "../src/socket.node";
-import { defaultBinaryTypeParser } from "../src/types/built-ins";
+import { defaultBinaryTypeParser } from "../src/types/defaults";
 
 const client = new Client({
   connection: "postgresql://user:password@localhost:5432/driver",
