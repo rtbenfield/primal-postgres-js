@@ -224,6 +224,25 @@ export const TEXT: PostgresBinaryType<string> = {
   },
 };
 
+export const OID: PostgresBinaryType<number> = {
+  oid: 26,
+  name: "oid",
+  decode(buffer) {
+    const view = new DataView(
+      buffer.buffer,
+      buffer.byteOffset,
+      buffer.byteLength,
+    );
+    return view.getUint32(0, false);
+  },
+  encode(value) {
+    const buffer = new ArrayBuffer(4);
+    const view = new DataView(buffer);
+    view.setUint32(0, value, false);
+    return new Uint8Array(buffer);
+  },
+};
+
 export const TID: PostgresBinaryType<TupleIdentifier> = {
   oid: 27,
   name: "tid",
@@ -281,22 +300,14 @@ export const CID: PostgresBinaryType<number> = {
   },
 };
 
-export const OID: PostgresBinaryType<number> = {
+export const OID_VECTOR: PostgresBinaryType<number> = {
   oid: 30,
-  name: "oid",
+  name: "oid_vector",
   decode(buffer) {
-    const view = new DataView(
-      buffer.buffer,
-      buffer.byteOffset,
-      buffer.byteLength,
-    );
-    return view.getUint32(0, false);
+    throw new Error("Not implemented");
   },
   encode(value) {
-    const buffer = new ArrayBuffer(4);
-    const view = new DataView(buffer);
-    view.setUint32(0, value, false);
-    return new Uint8Array(buffer);
+    throw new Error("Not implemented");
   },
 };
 
