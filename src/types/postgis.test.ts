@@ -41,7 +41,7 @@ describe("geometry decoding", () => {
       0x6d, 0x37, 0xc1, 0x37, 0x4d, 0x37, 0x48, 0x40,
     ]);
     expect(GEOMETRY.decode(buffer, types)).toEqual({
-      geometryType: 536870913,
+      geometryType: "Point",
       srid: 4326,
       x: -71.060316,
       y: 48.432044,
@@ -80,7 +80,7 @@ describe("geometry decoding", () => {
       0x3c, 0xdb, 0xa3, 0x37, 0xdc, 0xc3, 0x05,
     ]);
     expect(GEOMETRY.decode(buffer, types)).toEqual({
-      geometryType: 536870915,
+      geometryType: "Polygon",
       srid: 4326,
       points: [
         { x: -71.060316, y: 48.432044 },

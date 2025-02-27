@@ -147,62 +147,57 @@ WHERE e.extname = 'postgis';`);
   `);
 });
 
-test("geography decoding", async () => {
+test.each([
+  {
+    text: "SRID=4326;POINT(-71.060316 48.432044)",
+    expected: {
+      geometryType: 536870913,
+      srid: 4326,
+      longitude: -71.060316,
+      latitude: 48.432044,
+    },
+  },
+])("geography decoding - %#", async ({ expected, text }) => {
   await using connection = await client.connect();
   expect(connection).toBeInstanceOf(Connection);
 
   const prepared = await connection.prepare(
-    `SELECT ST_GeogFromText('SRID=4326;POINT(-71.060316 48.432044)') AS geography_point;`,
+    `SELECT ST_GeogFromText($1) AS actual`,
   );
-  await using result = await prepared.execute([]);
-  await expect(result.toArray()).resolves.toEqual([
-    {
-      geography_point: {
-        geometryType: 536870913,
-        latitude: 48.432044,
-        longitude: -71.060316,
-        srid: 4326,
-      },
-    },
-  ]);
+  await using result = await prepared.execute([text]);
+  await expect(result.toArray()).resolves.toEqual([{ actual: expected }]);
 });
 
-test("geometry decoding", async () => {
+test.each([
+  {
+    text: "POINT(-71.060316 48.432044)",
+    expected: {
+      geometryType: "Point",
+      srid: 4326,
+      x: -71.060316,
+      y: 48.432044,
+    },
+  },
+  {
+    text: "POLYGON((-71.060316 48.432044, -71.060316 48.5, -71.0 48.5, -71.0 48.432044, -71.060316 48.432044))",
+    expected: {
+      geometryType: "Polygon",
+      srid: 4326,
+      points: [
+        { x: -71.060316, y: 48.432044 },
+        { x: -71.060316, y: 48.5 },
+        { x: -71.0, y: 48.5 },
+        { x: -71.0, y: 48.432044 },
+      ],
+    },
+  },
+])("geometry decoding - %#", async ({ expected, text }) => {
   await using connection = await client.connect();
   expect(connection).toBeInstanceOf(Connection);
 
   const prepared = await connection.prepare(
-    `SELECT ST_GeomFromText('POINT(-71.060316 48.432044)', 4326) AS geometry_point`,
+    `SELECT ST_GeomFromText($1, 4326) AS actual`,
   );
-  await using result = await prepared.execute([]);
-  await expect(result.toArray()).resolves.toEqual([
-    {
-      geometry_point: {
-        geometryType: 536870913,
-        srid: 4326,
-        x: -71.060316,
-        y: 48.432044,
-      },
-    },
-  ]);
-});
-
-test.only("geometry decoding", async () => {
-  await using connection = await client.connect();
-  expect(connection).toBeInstanceOf(Connection);
-
-  const prepared = await connection.prepare(
-    `SELECT ST_GeomFromText('POLYGON((-71.060316 48.432044, -71.060316 48.5, -71.0 48.5, -71.0 48.432044, -71.060316 48.432044))', 4326) AS geometry_polygon`,
-  );
-  await using result = await prepared.execute([]);
-  await expect(result.toArray()).resolves.toEqual([
-    {
-      geometry_polygon: {
-        geometryType: 6,
-        srid: 4326,
-        x: -71.060316,
-        y: 48.432044,
-      },
-    },
-  ]);
+  await using result = await prepared.execute([text]);
+  await expect(result.toArray()).resolves.toEqual([{ actual: expected }]);
 });
