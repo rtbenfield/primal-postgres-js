@@ -485,24 +485,35 @@ export const MACADDR: PostgresBinaryType<string> = {
   },
 };
 
-export const RECORD: PostgresBinaryType<unknown> = {
+export const RECORD: PostgresBinaryType<
+  Array<{ oid: number; value: unknown }>
+> = {
   oid: 2249,
   name: "record",
   decode(buffer, types) {
     const reader = new BinaryReader(buffer);
     const count = reader.readInt32();
-    const values = new Array<unknown>(count);
+    const values = new Array<{ oid: number; value: unknown }>(count);
     for (let i = 0; i < count; i++) {
       const oid = reader.readInt32();
       const elementLength = reader.readInt32();
       const elementType = types.getType(oid);
       const value = elementType.decode(reader.readBuffer(elementLength), types);
-      values[i] = value;
+      values[i] = { oid, value };
     }
     return values;
   },
-  encode(value) {
-    throw new Error("Not implemented");
+  encode(value, types) {
+    const writer = new BinaryWriter();
+    writer.writeInt32(value.length);
+    for (const element of value) {
+      const elementType = types.getType(element.oid);
+      const encoded = elementType.encode(element.value, types);
+      writer.writeInt32(element.oid);
+      writer.writeInt32(encoded.byteLength);
+      writer.writeBuffer(encoded);
+    }
+    return writer.buffer;
   },
 };
 

@@ -883,6 +883,83 @@ export class NoData {
 }
 
 /**
+ * CopyDone (F & B)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COPYDONE PostgreSQL Docs}
+ */
+export class CopyDone {
+  /** 'C' */
+  static readonly CODE = 0x43;
+
+  get buffer() {
+    return new Uint8Array([
+      CopyDone.CODE,
+      // length of 4
+      0x00,
+      0x00,
+      0x00,
+      0x04,
+    ]);
+  }
+
+  static parse(buffer: Uint8Array) {
+    const reader = new BinaryReader(buffer);
+    const length = reader.readInt32(); // length
+    // console.assert(length === 4, `Expected length 4, got ${length}`);
+  }
+}
+
+/**
+ * CopyFail (F)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COPYFAIL PostgreSQL Docs}
+ */
+export class CopyFail {
+  /** 'f' */
+  static readonly CODE = 0x66;
+
+  constructor(public errorMessage: string) {}
+
+  get buffer() {
+    const writer = new BinaryWriter();
+    writer.writeByte(CopyFail.CODE);
+    writer.writeInt32(this.errorMessage.length + 4);
+    writer.writeString(this.errorMessage);
+    return writer.buffer;
+  }
+}
+
+/**
+ * CopyInResponse (B)
+ *
+ * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COPYINRESPONSE PostgreSQL Docs}
+ */
+export class CopyInResponse {
+  /** 'G' */
+  static readonly CODE = 0x47;
+
+  constructor(
+    /** The overall COPY format. 0 indicates text, 1 indicates binary. */
+    public formatCode: number,
+    /** The format code of each column in the row. */
+    public columns: Array<number>,
+  ) {}
+
+  static parse(buffer: Uint8Array) {
+    const reader = new BinaryReader(buffer);
+    reader.readByte(); // code
+    reader.readInt32(); // length
+    const formatCode = reader.readByte();
+    const numCols = reader.readInt16();
+    const columns = new Array<number>(numCols);
+    for (let i = 0; i < numCols; i++) {
+      columns[i] = reader.readInt16();
+    }
+    return new CopyInResponse(formatCode, columns);
+  }
+}
+
+/**
  * CopyBothResponse (B)
  *
  * @see {@link https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COPYBOTHRESPONSE PostgreSQL Docs}

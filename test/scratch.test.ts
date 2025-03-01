@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { ConsoleLogger } from "../src/logger";
 import { Client, Connection, PreparedStatement, QueryResult } from "../src/mod";
 import { NodeSocket } from "../src/socket.node";
 import { defaultBinaryTypeParser } from "../src/types/defaults";
@@ -20,6 +21,7 @@ const client = new Client({
     await socket.connected;
     return socket;
   },
+  logger: new ConsoleLogger("debug"),
   types: defaultBinaryTypeParser,
 });
 
@@ -91,15 +93,24 @@ test("do tuples work", async () => {
   expect(results).toEqual([
     {
       id: expect.any(String),
-      nested: [expect.any(String), expect.any(Number)],
+      nested: [
+        { oid: 25, value: expect.any(String) },
+        { oid: 23, value: expect.any(Number) },
+      ],
     },
     {
       id: expect.any(String),
-      nested: [expect.any(String), expect.any(Number)],
+      nested: [
+        { oid: 25, value: expect.any(String) },
+        { oid: 23, value: expect.any(Number) },
+      ],
     },
     {
       id: expect.any(String),
-      nested: [expect.any(String), expect.any(Number)],
+      nested: [
+        { oid: 25, value: expect.any(String) },
+        { oid: 23, value: expect.any(Number) },
+      ],
     },
   ]);
 });
@@ -130,27 +141,63 @@ test("do arrays of tuple work", async () => {
       id: expect.any(String),
       text: expect.any(String),
       nested: [
-        [expect.any(String), expect.any(String), expect.any(Number)],
-        [expect.any(String), expect.any(String), expect.any(Number)],
-        [expect.any(String), expect.any(String), expect.any(Number)],
+        [
+          { oid: 2950, value: expect.any(String) },
+          { oid: 25, value: expect.any(String) },
+          { oid: 23, value: expect.any(Number) },
+        ],
+        [
+          { oid: 2950, value: expect.any(String) },
+          { oid: 25, value: expect.any(String) },
+          { oid: 23, value: expect.any(Number) },
+        ],
+        [
+          { oid: 2950, value: expect.any(String) },
+          { oid: 25, value: expect.any(String) },
+          { oid: 23, value: expect.any(Number) },
+        ],
       ],
     },
     {
       id: expect.any(String),
       text: expect.any(String),
       nested: [
-        [expect.any(String), expect.any(String), expect.any(Number)],
-        [expect.any(String), expect.any(String), expect.any(Number)],
-        [expect.any(String), expect.any(String), expect.any(Number)],
+        [
+          { oid: 2950, value: expect.any(String) },
+          { oid: 25, value: expect.any(String) },
+          { oid: 23, value: expect.any(Number) },
+        ],
+        [
+          { oid: 2950, value: expect.any(String) },
+          { oid: 25, value: expect.any(String) },
+          { oid: 23, value: expect.any(Number) },
+        ],
+        [
+          { oid: 2950, value: expect.any(String) },
+          { oid: 25, value: expect.any(String) },
+          { oid: 23, value: expect.any(Number) },
+        ],
       ],
     },
     {
       id: expect.any(String),
       text: expect.any(String),
       nested: [
-        [expect.any(String), expect.any(String), expect.any(Number)],
-        [expect.any(String), expect.any(String), expect.any(Number)],
-        [expect.any(String), expect.any(String), expect.any(Number)],
+        [
+          { oid: 2950, value: expect.any(String) },
+          { oid: 25, value: expect.any(String) },
+          { oid: 23, value: expect.any(Number) },
+        ],
+        [
+          { oid: 2950, value: expect.any(String) },
+          { oid: 25, value: expect.any(String) },
+          { oid: 23, value: expect.any(Number) },
+        ],
+        [
+          { oid: 2950, value: expect.any(String) },
+          { oid: 25, value: expect.any(String) },
+          { oid: 23, value: expect.any(Number) },
+        ],
       ],
     },
   ]);
@@ -165,4 +212,29 @@ test.each([100, 1_000, 10_000])("large result set - %i", async (count) => {
   const results = await statement.execute([count]);
   const rows = await results.toArray();
   expect(rows.length).toBe(count);
+});
+
+test.only("copy data in", async () => {
+  await using connection = await client.connect();
+
+  await connection
+    .prepare(
+      "CREATE TEMPORARY TABLE testing (id UUID PRIMARY KEY, text TEXT NOT NULL)",
+    )
+    .then((x) => x.execute([]))
+    .then((x) => x.toArray());
+
+  await connection.copy(
+    "COPY testing (id, text) FROM STDIN WITH (FORMAT BINARY)",
+    new ReadableStream({
+      start(controller) {
+        for (let i = 0; i < 100; i++) {
+          controller.enqueue(
+            new Uint8Array([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]),
+          );
+        }
+        controller.close();
+      },
+    }),
+  );
 });

@@ -6,6 +6,7 @@ import {
   RowDescription,
   Terminate,
 } from "./protocol";
+import { copyData } from "./protocol/copy-data";
 import {
   executePreparedStatementSequence,
   extendedQuerySequence,
@@ -103,6 +104,10 @@ export class Connection {
     } finally {
       writer.releaseLock();
     }
+  }
+
+  copy(query: string, stdin: ReadableStream<Uint8Array>) {
+    return copyData(this.#socket, query, stdin, this.#logger);
   }
 
   async query(sql: string) {
