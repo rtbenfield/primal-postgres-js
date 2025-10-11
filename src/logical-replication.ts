@@ -9,7 +9,7 @@ import {
   Type,
   Update,
 } from "./pgoutput";
-import { CopyBothResponse, CopyData, ErrorResponse } from "./protocol";
+import { CopyBothResponse, CopyData, ErrorResponse } from "./messages/mod";
 import { microsecondsToDate, PrimaryKeepalive, XLogData } from "./replication";
 import { TypeParser } from "./types/mod";
 

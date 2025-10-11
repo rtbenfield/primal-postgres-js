@@ -14,7 +14,7 @@ import {
   ReadyForQuery,
   RowDescription,
   Sync,
-} from "../protocol";
+} from "../messages/mod";
 import { NOREPLY, Sequence, SKIP } from "../sequence";
 
 /**

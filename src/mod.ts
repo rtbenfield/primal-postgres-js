@@ -5,7 +5,7 @@ import {
   Query,
   RowDescription,
   Terminate,
-} from "./protocol";
+} from "./messages/mod";
 import {
   executePreparedStatementSequence,
   extendedQuerySequence,

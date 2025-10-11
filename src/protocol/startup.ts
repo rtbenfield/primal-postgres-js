@@ -11,7 +11,7 @@ import {
   SASLInitialResponse,
   SASLResponse,
   StartupMessage,
-} from "../protocol.js";
+} from "../messages/mod";
 import { Sequence, SKIP } from "../sequence";
 
 const encoder = new TextEncoder();
