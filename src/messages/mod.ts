@@ -2,7 +2,6 @@ export { AuthenticationOK } from "./AuthenticationOK";
 export { AuthenticationSASL } from "./AuthenticationSASL";
 export { AuthenticationSASLContinue } from "./AuthenticationSASLContinue";
 export { AuthenticationSASLFinal } from "./AuthenticationSASLFinal";
-export { authenticationSwitch } from "./authenticationSwitch";
 export { BackendKeyData } from "./BackendKeyData";
 export { Bind } from "./Bind";
 export { BindComplete } from "./BindComplete";
